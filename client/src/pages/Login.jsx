@@ -1,0 +1,127 @@
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { Shield, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
+
+const Login = () => {
+  const { login } = useAuth();
+  const navigate = useNavigate();
+  const [form, setForm] = useState({ email: '', password: '' });
+  const [showPass, setShowPass] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleChange = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const user = await login(form.email, form.password);
+      toast.success(`Welcome back, ${user.name}!`);
+      navigate(user.role === 'admin' ? '/admin' : '/dashboard');
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Login failed. Check your credentials.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-brand-bg flex items-center justify-center p-4">
+      {/* Background glow */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-cyan-500/8 rounded-full blur-3xl" />
+      </div>
+
+      <div className="w-full max-w-md relative animate-fade-in">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl shadow-xl shadow-blue-500/30 mb-4">
+            <Shield size={28} className="text-white" />
+          </div>
+          <h1 className="text-3xl font-black tracking-tight">
+            <span className="text-brand-text">Safe</span>
+            <span className="text-gradient">Stay</span>
+          </h1>
+          <p className="text-brand-muted mt-1 text-sm">IoT Safety Platform · Sign in to continue</p>
+        </div>
+
+        {/* Card */}
+        <div className="card shadow-2xl">
+          <h2 className="text-xl font-bold mb-6 text-brand-text">Sign In</h2>
+
+          {error && (
+            <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl px-4 py-3 mb-5 text-sm">
+              <AlertCircle size={16} className="shrink-0" />
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-brand-muted uppercase tracking-wider mb-1.5">Email</label>
+              <input
+                id="login-email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                value={form.email}
+                onChange={handleChange}
+                className="input-field"
+                placeholder="you@example.com"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-brand-muted uppercase tracking-wider mb-1.5">Password</label>
+              <div className="relative">
+                <input
+                  id="login-password"
+                  name="password"
+                  type={showPass ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  required
+                  value={form.password}
+                  onChange={handleChange}
+                  className="input-field pr-12"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPass((p) => !p)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-muted hover:text-brand-subtle transition-colors"
+                >
+                  {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+
+            <button type="submit" id="login-submit" disabled={loading} className="btn-primary w-full flex items-center justify-center gap-2 mt-2">
+              {loading ? <><Loader2 size={18} className="animate-spin" /> Signing in...</> : 'Sign In'}
+            </button>
+          </form>
+
+          <p className="text-center text-brand-muted text-sm mt-5">
+            No account?{' '}
+            <Link to="/register" className="text-brand-accent hover:underline font-semibold">
+              Register here
+            </Link>
+          </p>
+        </div>
+
+        {/* Demo hint */}
+        <div className="mt-4 card bg-brand-surface/50 text-center">
+          <p className="text-brand-muted text-xs">
+            <span className="text-brand-subtle font-semibold">Demo:</span> Register with role <code className="bg-brand-border px-1.5 py-0.5 rounded text-brand-accent">admin</code> or <code className="bg-brand-border px-1.5 py-0.5 rounded text-brand-accent">user</code>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Login;
