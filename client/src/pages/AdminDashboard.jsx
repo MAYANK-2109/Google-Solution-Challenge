@@ -13,13 +13,13 @@ const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const AdminDashboard = () => {
   const { socket, connected } = useSocket();
-  const [incidents, setIncidents]         = useState([]);
+  const [incidents, setIncidents] = useState([]);
   const [userLocations, setUserLocations] = useState([]); // [{ tripId, userId, userName, lat, lng, alertLevel }]
-  const [liveHR, setLiveHR]               = useState({});   // { userId: hr }
+  const [liveHR, setLiveHR] = useState({});   // { userId: hr }
   const [selectedIncident, setSelectedIncident] = useState(null);
-  const [selectedUser, setSelectedUser]          = useState(null); // { tripId, userId, userName, loc, alertLevel }
-  const [activeTrips, setActiveTrips]     = useState([]);
-  const [chatLogs, setChatLogs]           = useState({}); // { [tripId]: [] }
+  const [selectedUser, setSelectedUser] = useState(null); // { tripId, userId, userName, loc, alertLevel }
+  const [activeTrips, setActiveTrips] = useState([]);
+  const [chatLogs, setChatLogs] = useState({}); // { [tripId]: [] }
 
   // ── Load initial data ───────────────────────────────────
   const fetchInitial = useCallback(async () => {
@@ -80,7 +80,7 @@ const AdminDashboard = () => {
         prev.map((u) => u.tripId === incident.tripId?._id || u.tripId === incident.tripId
           ? { ...u, alertLevel: incident.type === 'Warning' ? 'warning' : u.alertLevel }
           : u
-      ));
+        ));
       toast(`⚠️ Warning: ${incident.userId?.name} — ${incident.notes}`, {
         icon: '⚠️', duration: 8000, style: { background: '#1a2235', color: '#f59e0b' },
       });
@@ -97,6 +97,14 @@ const AdminDashboard = () => {
       });
       // Auto-select the SOS incident
       setSelectedIncident(incident);
+      setSelectedUser({
+        ...incident,
+        tripId: tripId,
+        userId: incident.userId,
+        userName: incident.userId?.name,
+        loc: incident.location,
+        alertLevel: 'sos',
+      });
     });
 
     // Alert cleared by admin resolve
@@ -115,6 +123,17 @@ const AdminDashboard = () => {
       toast(`User Message: ${message}`, { icon: '💬', duration: 6000 });
     });
 
+    // AI Risk Report or status update — live update incident in list
+    socket.on('incident-updated', (updatedIncident) => {
+      setIncidents((prev) =>
+        prev.map((i) => i._id === updatedIncident._id ? { ...i, ...updatedIncident } : i)
+      );
+      // If this is the currently selected incident, update it too
+      setSelectedIncident((prev) =>
+        prev && prev._id === updatedIncident._id ? { ...prev, ...updatedIncident } : prev
+      );
+    });
+
     return () => {
       socket.off('user-location');
       socket.off('user-biometric');
@@ -122,25 +141,28 @@ const AdminDashboard = () => {
       socket.off('sos-alert');
       socket.off('alert-cleared');
       socket.off('admin-notification');
+      socket.off('incident-updated');
     };
   }, [socket]);
 
   // ── Select incident → populate user panel ───────────────
   const handleSelectIncident = useCallback((inc) => {
     setSelectedIncident(inc);
-    const loc = userLocations.find((u) => u.tripId === inc.tripId || u.userId === inc.userId?._id);
+    // Try to find live location first, then fall back to the incident's stored location
+    const liveLoc = userLocations.find((u) => u.tripId === inc.tripId || u.userId === inc.userId?._id);
+    const resolvedLoc = (liveLoc ? { lat: liveLoc.lat, lng: liveLoc.lng } : null) || inc.location || null;
     setSelectedUser({
       ...inc,
-      tripId: inc.tripId || loc?.tripId,
+      tripId: inc.tripId || liveLoc?.tripId,
       userId: inc.userId,
       userName: inc.userId?.name,
-      loc: inc.location || (loc ? { lat: loc.lat, lng: loc.lng } : null),
+      loc: resolvedLoc,
       alertLevel: inc.type === 'SOS' ? 'sos' : inc.type === 'Warning' ? 'warning' : 'normal',
     });
   }, [userLocations]);
 
   const handleSelectMapUser = useCallback((entry) => {
-    setSelectedUser(entry);
+    setSelectedUser({ ...entry, loc: { lat: entry.lat, lng: entry.lng } });
     setSelectedIncident(null);
   }, []);
 
@@ -151,9 +173,9 @@ const AdminDashboard = () => {
   }, []);
 
   // ── Stats ───────────────────────────────────────────────
-  const openSOS      = incidents.filter((i) => i.type === 'SOS' && i.status === 'open').length;
+  const openSOS = incidents.filter((i) => i.type === 'SOS' && i.status === 'open').length;
   const openWarnings = incidents.filter((i) => i.type === 'Warning' && i.status === 'open').length;
-  const activeCount  = userLocations.length;
+  const activeCount = userLocations.length;
 
   return (
     <div className="min-h-screen bg-brand-bg flex flex-col">
@@ -164,10 +186,10 @@ const AdminDashboard = () => {
         {/* ── Stats Bar ─────────────────────────────────── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: 'Active Users',   value: activeCount,   icon: Users,         color: 'text-blue-400',    bg: 'bg-blue-500/10',    border: 'border-blue-500/20' },
-            { label: 'Open SOS',       value: openSOS,       icon: AlertTriangle,  color: 'text-red-400',     bg: 'bg-red-500/10',     border: 'border-red-500/20' },
-            { label: 'Open Warnings',  value: openWarnings,  icon: Activity,       color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20' },
-            { label: 'Stream Status',  value: connected ? 'LIVE' : 'OFF', icon: Radio, color: connected ? 'text-emerald-400' : 'text-red-400', bg: connected ? 'bg-emerald-500/10' : 'bg-red-500/10', border: connected ? 'border-emerald-500/20' : 'border-red-500/20' },
+            { label: 'Active Users', value: activeCount, icon: Users, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
+            { label: 'Open SOS', value: openSOS, icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/20' },
+            { label: 'Open Warnings', value: openWarnings, icon: Activity, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
+            { label: 'Stream Status', value: connected ? 'LIVE' : 'OFF', icon: Radio, color: connected ? 'text-emerald-400' : 'text-red-400', bg: connected ? 'bg-emerald-500/10' : 'bg-red-500/10', border: connected ? 'border-emerald-500/20' : 'border-red-500/20' },
           ].map(({ label, value, icon: Icon, color, bg, border }) => (
             <div key={label} className={`card ${bg} border ${border} flex items-center gap-3 py-3`}>
               <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center border ${border}`}>
@@ -194,7 +216,11 @@ const AdminDashboard = () => {
                 <span className="text-xs font-bold text-brand-text uppercase tracking-widest">Live Map · {activeCount} Active</span>
               </div>
               <div style={{ height: 'calc(100% - 45px)' }}>
-                <LiveMap userLocations={userLocations} onSelectUser={handleSelectMapUser} />
+                <LiveMap 
+                  userLocations={userLocations} 
+                  onSelectUser={handleSelectMapUser}
+                  centerPoint={selectedUser?.loc || selectedIncident?.location || null} 
+                />
               </div>
             </div>
 
@@ -226,7 +252,11 @@ const AdminDashboard = () => {
               <UserVitalsPanel
                 selectedUser={selectedUser}
                 liveHR={selectedUser ? liveHR[selectedUser.userId?._id || selectedUser.userId] : null}
-                liveLoc={selectedUser ? userLocations.find((u) => u.tripId === selectedUser.tripId) : null}
+                liveLoc={
+                  (selectedUser ? userLocations.find((u) => u.tripId === selectedUser.tripId) : null)
+                  || selectedUser?.loc
+                  || null
+                }
               />
             </div>
 
@@ -239,6 +269,12 @@ const AdminDashboard = () => {
               <ResponseTools
                 selectedIncident={selectedIncident}
                 selectedUser={selectedUser}
+                liveLoc={
+                  (selectedUser ? userLocations.find((u) => u.tripId === selectedUser.tripId) : null)
+                  || selectedUser?.loc
+                  || selectedIncident?.location
+                  || null
+                }
                 onResolved={handleResolved}
                 chatHistory={chatLogs[selectedUser?.tripId] || []}
                 onMessageSent={(tripId, msg) => {

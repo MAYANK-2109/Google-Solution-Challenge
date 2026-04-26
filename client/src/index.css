@@ -4,6 +4,35 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Theme CSS Variables ───────────────────────────────── */
+:root {
+  --brand-bg:           #0a0e1a;
+  --brand-surface:      #111827;
+  --brand-card:         #1a2235;
+  --brand-border:       #1f2d45;
+  --brand-accent:       #3b82f6;
+  --brand-accent-hover: #2563eb;
+  --brand-danger:       #ef4444;
+  --brand-danger-dark:  #b91c1c;
+  --brand-text:         #e2e8f0;
+  --brand-muted:        #94a3b8;
+  --brand-subtle:       #cbd5e1;
+}
+
+[data-theme="light"] {
+  --brand-bg:           #f8fafc;
+  --brand-surface:      #ffffff;
+  --brand-card:         #f1f5f9;
+  --brand-border:       #cbd5e1;
+  --brand-accent:       #2563eb;
+  --brand-accent-hover: #1d4ed8;
+  --brand-danger:       #dc2626;
+  --brand-danger-dark:  #991b1b;
+  --brand-text:         #0f172a;
+  --brand-muted:        #475569;
+  --brand-subtle:       #64748b;
+}
+
 @layer base {
 
   *,

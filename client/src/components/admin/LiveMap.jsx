@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { MapContainer, TileLayer, Circle, CircleMarker, Popup } from 'react-leaflet';
+import { useState, useRef, useEffect } from 'react';
+import { MapContainer, TileLayer, Circle, CircleMarker, Popup, useMap } from 'react-leaflet';
 import { MapPin } from 'lucide-react';
 
 const CAMPUS_CENTER = [15.3173, 73.9278];
@@ -9,7 +9,17 @@ const STATUS_COLORS = {
   sos:     '#ef4444',
 };
 
-const LiveMap = ({ userLocations, onSelectUser }) => {
+const MapController = ({ centerPoint }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (centerPoint && centerPoint.lat && centerPoint.lng) {
+      map.flyTo([centerPoint.lat, centerPoint.lng], 18, { animate: true, duration: 1.5 });
+    }
+  }, [centerPoint, map]);
+  return null;
+};
+
+const LiveMap = ({ userLocations, onSelectUser, centerPoint }) => {
   const mapRef = useRef(null);
 
   const handleMarkerClick = (entry) => {
@@ -18,12 +28,13 @@ const LiveMap = ({ userLocations, onSelectUser }) => {
 
   return (
     <MapContainer
-      center={CAMPUS_CENTER}
+      center={centerPoint && centerPoint.lat ? [centerPoint.lat, centerPoint.lng] : CAMPUS_CENTER}
       zoom={16}
       scrollWheelZoom={false}
       style={{ width: '100%', height: '100%' }}
       ref={mapRef}
     >
+      <MapController centerPoint={centerPoint} />
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

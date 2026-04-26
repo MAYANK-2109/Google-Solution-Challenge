@@ -7,19 +7,47 @@ import { useAuth } from '../../contexts/AuthContext';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-const ResponseTools = ({ selectedIncident, selectedUser, onResolved, chatHistory = [], onMessageSent }) => {
+const ResponseTools = ({ selectedIncident, selectedUser, liveLoc, onResolved, chatHistory = [], onMessageSent }) => {
   const { socket } = useSocket();
   const { user } = useAuth();
   const [resolving, setResolving] = useState(false);
   const [message, setMessage] = useState('');
   const [sendingMsg, setSendingMsg] = useState(false);
 
-  const forwardLocation = () => {
-    const loc = selectedUser?.loc || selectedIncident?.location;
+  const forwardLocation = async () => {
+    const loc = liveLoc || selectedUser?.loc || selectedIncident?.location;
     if (!loc) { toast.error('No location data available'); return; }
     const mapsUrl = `https://www.google.com/maps?q=${loc.lat},${loc.lng}`;
-    window.open(mapsUrl, '_blank');
-    toast.success('📍 Location opened in Google Maps');
+    
+    const name = selectedUser?.userId?.name || selectedUser?.userName || selectedIncident?.userId?.name || 'User';
+    const textToShare = `Emergency Alert: Live location of ${name}`;
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: 'Emergency Location',
+          text: textToShare,
+          url: mapsUrl
+        });
+        toast.success('📍 Location forwarded successfully');
+      } else {
+        await navigator.clipboard.writeText(`${textToShare}\n${mapsUrl}`);
+        toast.success('📍 Location link copied to clipboard');
+        window.open(mapsUrl, '_blank');
+      }
+    } catch (err) {
+      console.error('Share failed:', err);
+      if (err.name !== 'AbortError') {
+        try {
+          await navigator.clipboard.writeText(`${textToShare}\n${mapsUrl}`);
+          toast.success('📍 Location link copied to clipboard');
+          window.open(mapsUrl, '_blank');
+        } catch (clipboardErr) {
+          toast.error('Failed to copy location, opening map directly...');
+          window.open(mapsUrl, '_blank');
+        }
+      }
+    }
   };
 
   const sendMessage = () => {
@@ -43,15 +71,20 @@ const ResponseTools = ({ selectedIncident, selectedUser, onResolved, chatHistory
       await axios.patch(`${API}/incidents/${selectedIncident._id}/resolve`, {
         responderNotes: `Resolved by ${user?.name}`,
       });
-      // Clear user's alert
+      // Clear user's alert via socket
+      const tripId = typeof selectedIncident.tripId === 'object'
+        ? selectedIncident.tripId?._id
+        : selectedIncident.tripId;
       socket?.emit('resolve-alert', {
-        tripId: selectedIncident.tripId,
-        userId: selectedIncident.userId?._id,
+        tripId,
+        userId: selectedIncident.userId?._id || selectedIncident.userId,
       });
-      toast.success('Incident resolved');
+      toast.success('✅ Incident resolved');
       onResolved?.(selectedIncident._id);
     } catch (err) {
-      toast.error('Failed to resolve incident');
+      const msg = err?.response?.data?.message || 'Failed to resolve incident';
+      toast.error(msg);
+      console.error('Resolve error:', err);
     } finally {
       setResolving(false);
     }
@@ -63,8 +96,9 @@ const ResponseTools = ({ selectedIncident, selectedUser, onResolved, chatHistory
       await axios.patch(`${API}/incidents/${selectedIncident._id}/acknowledge`);
       toast.success('Incident acknowledged');
       onResolved?.(selectedIncident._id, 'acknowledged');
-    } catch {
-      toast.error('Failed to acknowledge');
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Failed to acknowledge';
+      toast.error(msg);
     }
   };
 
@@ -98,6 +132,19 @@ const ResponseTools = ({ selectedIncident, selectedUser, onResolved, chatHistory
               Alert Responder
             </button>
           </div>
+
+          {/* Gemini AI Risk Report */}
+          {selectedIncident?.aiRiskReport && (
+            <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4 animate-fade-in shadow-[0_0_15px_rgba(168,85,247,0.1)]">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-lg">✨</span>
+                <span className="text-xs font-bold text-purple-400 uppercase tracking-wider">AI Risk Assessment</span>
+              </div>
+              <p className="text-sm text-purple-200 leading-relaxed">
+                {selectedIncident.aiRiskReport}
+              </p>
+            </div>
+          )}
 
           {/* Incident status actions */}
           {selectedIncident && selectedIncident.status === 'open' && (

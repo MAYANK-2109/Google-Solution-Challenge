@@ -19,6 +19,7 @@ const incidentSchema = new mongoose.Schema(
     biometricSnapshot: {
       hr: { type: Number },
     },
+    aiRiskReport: { type: String, default: '' },
   },
   { timestamps: true }
 );

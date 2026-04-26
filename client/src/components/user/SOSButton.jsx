@@ -10,6 +10,8 @@ const SOSButton = ({ activeTrip, userId, currentHR, currentLocation, onSOSTrigge
   const { socket } = useSocket();
   const [localTriggered, setLocalTriggered] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recordingCountdown, setRecordingCountdown] = useState(0);
   const [holdProgress, setHoldProgress] = useState(0);
   const [holdTimer, setHoldTimer] = useState(null);
   const HOLD_MS = 1500;
@@ -19,6 +21,72 @@ const SOSButton = ({ activeTrip, userId, currentHR, currentLocation, onSOSTrigge
   useEffect(() => {
     if (activeTrip?.alertLevel === 'normal') setLocalTriggered(false);
   }, [activeTrip?.alertLevel]);
+
+  // --- Upload audio (real or empty) to trigger AI analysis ---
+  const uploadAudioForAnalysis = async (incidentId, audioBlob) => {
+    const formData = new FormData();
+    if (audioBlob) {
+      formData.append('audio', audioBlob, 'sos_audio.webm');
+    }
+    try {
+      await axios.post(`${API}/incidents/${incidentId}/audio`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      toast.success('✨ AI risk report generated for security team.');
+    } catch (err) {
+      console.error('Audio upload failed', err);
+    }
+  };
+
+  // --- Try to record 7s of audio; fall back gracefully ---
+  const startAudioRecording = async (incidentId) => {
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('MediaDevices not supported');
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      const audioChunks = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunks.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        setRecording(false);
+        setRecordingCountdown(0);
+        await uploadAudioForAnalysis(incidentId, audioBlob);
+      };
+
+      setRecording(true);
+      setRecordingCountdown(7);
+      mediaRecorder.start();
+
+      // countdown timer
+      let count = 7;
+      const countId = setInterval(() => {
+        count -= 1;
+        setRecordingCountdown(count);
+        if (count <= 0) clearInterval(countId);
+      }, 1000);
+
+      setTimeout(() => {
+        clearInterval(countId);
+        if (mediaRecorder.state === 'recording') mediaRecorder.stop();
+      }, 7000);
+
+    } catch (err) {
+      console.warn('Mic unavailable, sending telemetry-only AI analysis:', err.message);
+      toast('🎙️ Mic unavailable — generating AI report from telemetry...', {
+        duration: 3000,
+        icon: '⚠️',
+      });
+      // Send an empty request — the backend will generate a report based on biometrics only
+      await uploadAudioForAnalysis(incidentId, null);
+    }
+  };
 
   const triggerSOS = useCallback(async () => {
     if (!activeTrip || triggered || loading) return;
@@ -32,23 +100,28 @@ const SOSButton = ({ activeTrip, userId, currentHR, currentLocation, onSOSTrigge
         notes: 'Manual SOS triggered by user',
       };
 
-      await axios.post(`${API}/incidents`, payload);
+      const { data: incident } = await axios.post(`${API}/incidents`, payload);
 
-      // Also emit via socket for instant push
+      // Instant socket push so map turns red immediately
       if (socket) {
         socket.emit('sos-trigger', {
           tripId: activeTrip._id,
           userId,
-          ...currentLocation,
+          lat: currentLocation?.lat,
+          lng: currentLocation?.lng,
           hr: currentHR,
         });
       }
 
-      setTriggered(true);
+      setLocalTriggered(true);
       onSOSTriggered?.();
       toast.error('🚨 SOS Activated! Security has been alerted.', { duration: 6000 });
+
+      // Start audio recording / AI analysis in background
+      startAudioRecording(incident._id);
     } catch (err) {
-      toast.error('SOS failed to send. Try again.');
+      const msg = err?.response?.data?.message || 'SOS failed to send. Try again.';
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -100,13 +173,32 @@ const SOSButton = ({ activeTrip, userId, currentHR, currentLocation, onSOSTrigge
         <div className="bg-red-500/10 border border-red-500/40 rounded-2xl p-6 text-center animate-fade-in">
           <div className="text-4xl mb-3">🚨</div>
           <p className="text-red-400 font-black text-lg mb-1">SOS SENT</p>
-          <p className="text-red-300/70 text-sm">Security has been notified and is responding to your location.</p>
+          <p className="text-red-300/70 text-sm mb-4">Security has been notified and is responding to your location.</p>
+
+          {recording && (
+            <div className="bg-brand-surface/50 border border-brand-border rounded-xl p-3 flex flex-col items-center gap-2 animate-fade-in">
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
+                </span>
+                <span className="text-xs font-bold text-red-400 uppercase tracking-wider">
+                  Recording Audio — {recordingCountdown}s
+                </span>
+              </div>
+              <div className="w-full bg-brand-border rounded-full h-1">
+                <div
+                  className="bg-red-500 h-1 rounded-full transition-all duration-1000"
+                  style={{ width: `${((7 - recordingCountdown) / 7) * 100}%` }}
+                />
+              </div>
+              <p className="text-[10px] text-brand-muted">Capturing audio for AI situational analysis...</p>
+            </div>
+          )}
         </div>
       ) : (
         <div className="flex flex-col items-center gap-4">
-          {/* SOS Button */}
           <div className="relative">
-            {/* Outer ring animation */}
             <div className="absolute inset-0 rounded-full bg-red-500/20 animate-ping-slow scale-125" />
             <button
               id="btn-sos"
