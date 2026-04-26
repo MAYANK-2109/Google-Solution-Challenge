@@ -38,6 +38,13 @@ const applyTheme = (theme) => {
   const palette = themePalettes[theme] || themePalettes.dark;
 
   root.dataset.theme = theme;
+  
+  if (theme === 'dark') {
+    root.classList.add('dark');
+  } else {
+    root.classList.remove('dark');
+  }
+
   Object.entries(palette).forEach(([key, value]) => {
     root.style.setProperty(key, value);
   });

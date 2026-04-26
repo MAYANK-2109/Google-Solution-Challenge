@@ -8,7 +8,7 @@ const ZONES = [
 ];
 const getZone = (hr) => ZONES.find((z) => hr >= z.min && hr < z.max) || ZONES[1];
 
-const UserVitalsPanel = ({ selectedUser, liveHR, liveLoc }) => {
+const UserVitalsPanel = ({ selectedUser, liveHR, liveSource, liveLoc }) => {
   if (!selectedUser) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3 py-8 text-center">
@@ -52,9 +52,16 @@ const UserVitalsPanel = ({ selectedUser, liveHR, liveLoc }) => {
 
       {/* Heart Rate Gauge */}
       <div className="bg-brand-surface rounded-xl border border-brand-border p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <Heart size={14} style={{ color: zone.color }} className={hr > 120 ? 'animate-pulse' : ''} />
-          <span className="text-xs font-semibold text-brand-muted uppercase tracking-wider">Heart Rate</span>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Heart size={14} style={{ color: zone.color }} className={hr > 120 ? 'animate-pulse' : ''} />
+            <span className="text-xs font-semibold text-brand-muted uppercase tracking-wider">Heart Rate</span>
+          </div>
+          {liveSource === 'ble' && (
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 uppercase tracking-wider border border-blue-500/30">
+              BLE Source
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-4">

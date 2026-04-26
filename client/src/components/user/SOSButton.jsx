@@ -23,18 +23,24 @@ const SOSButton = ({ activeTrip, userId, currentHR, currentLocation, onSOSTrigge
   }, [activeTrip?.alertLevel]);
 
   // --- Upload audio (real or empty) to trigger AI analysis ---
+  // NOTE: axios interceptor in AuthContext automatically attaches Authorization header.
   const uploadAudioForAnalysis = async (incidentId, audioBlob) => {
+    if (!incidentId) {
+      console.error('uploadAudioForAnalysis: missing incidentId');
+      return;
+    }
     const formData = new FormData();
-    if (audioBlob) {
+    if (audioBlob && audioBlob.size > 0) {
       formData.append('audio', audioBlob, 'sos_audio.webm');
     }
     try {
-      await axios.post(`${API}/incidents/${incidentId}/audio`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      await axios.post(`${API}/incidents/${incidentId}/audio`, formData);
       toast.success('✨ AI risk report generated for security team.');
     } catch (err) {
-      console.error('Audio upload failed', err);
+      console.error('Audio upload failed:', err?.response?.status, err?.response?.data || err.message);
+      toast.error(`⚠️ AI report failed (${err?.response?.status || 'network'}). Security still notified.`, {
+        duration: 5000,
+      });
     }
   };
 

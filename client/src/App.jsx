@@ -6,15 +6,16 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import ProtectedRoute from './components/shared/ProtectedRoute';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import LandingPage from './pages/LandingPage';
 import UserDashboard from './pages/UserDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import { useAuth } from './contexts/AuthContext';
 
-// Root redirect based on role
+// Root: show landing page for guests, redirect logged-in users to their dashboard
 const RootRedirect = () => {
   const { user, loading } = useAuth();
   if (loading) return null;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <LandingPage />;
   return <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} replace />;
 };
 

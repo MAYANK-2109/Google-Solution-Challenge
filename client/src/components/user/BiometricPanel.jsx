@@ -9,7 +9,7 @@ const ZONES = [
 
 const getZone = (hr) => ZONES.find((z) => hr >= z.min && hr < z.max) || ZONES[1];
 
-const BiometricPanel = ({ heartRate, trend, isActive }) => {
+const BiometricPanel = ({ heartRate, trend, isActive, isBluetoothConnected }) => {
   const zone = getZone(heartRate);
   const pct  = Math.min((heartRate / 180) * 100, 100);
 
@@ -28,7 +28,14 @@ const BiometricPanel = ({ heartRate, trend, isActive }) => {
         </div>
         <div>
           <h2 className="font-bold text-brand-text">Heart Rate Monitor</h2>
-          <p className="text-xs text-brand-muted">Biometric telemetry · live</p>
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-brand-muted">Biometric telemetry · live</p>
+            {isBluetoothConnected && (
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 uppercase tracking-wider border border-blue-500/30">
+                BLE Active
+              </span>
+            )}
+          </div>
         </div>
       </div>
 

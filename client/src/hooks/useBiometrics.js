@@ -9,7 +9,7 @@ const EMIT_INTERVAL = 3000; // 3 seconds
 
 const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
 
-export const useBiometrics = (tripId, userId, isActive, isCrisis = false) => {
+export const useBiometrics = (tripId, userId, isActive, isCrisis = false, externalHR = null) => {
   const { socket } = useSocket();
   const [heartRate, setHeartRate] = useState(BASE_HR);
   const [trend, setTrend] = useState('stable'); // 'up' | 'down' | 'stable'
@@ -17,6 +17,14 @@ export const useBiometrics = (tripId, userId, isActive, isCrisis = false) => {
   const intervalRef = useRef(null);
 
   const generateHR = useCallback(() => {
+    if (externalHR !== null && externalHR !== undefined) {
+      const t = externalHR > prevHR.current ? 'up' : externalHR < prevHR.current ? 'down' : 'stable';
+      prevHR.current = externalHR;
+      setHeartRate(externalHR);
+      setTrend(t);
+      return { hr: externalHR, source: 'ble' };
+    }
+
     let hr;
     if (isCrisis) {
       hr = CRISIS_HR_MIN + Math.floor(Math.random() * (CRISIS_HR_MAX - CRISIS_HR_MIN));
@@ -28,8 +36,8 @@ export const useBiometrics = (tripId, userId, isActive, isCrisis = false) => {
     prevHR.current = hr;
     setHeartRate(hr);
     setTrend(t);
-    return hr;
-  }, [isCrisis]);
+    return { hr, source: 'simulated' };
+  }, [isCrisis, externalHR]);
 
   useEffect(() => {
     if (!isActive) {
@@ -38,9 +46,9 @@ export const useBiometrics = (tripId, userId, isActive, isCrisis = false) => {
     }
 
     const tick = () => {
-      const hr = generateHR();
+      const { hr, source } = generateHR();
       if (socket && tripId) {
-        socket.emit('biometric-update', { tripId, userId, hr });
+        socket.emit('biometric-update', { tripId, userId, hr, source });
       }
     };
 

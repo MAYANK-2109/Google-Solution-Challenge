@@ -12,6 +12,7 @@ const locationPointSchema = new mongoose.Schema(
 const biometricPointSchema = new mongoose.Schema(
   {
     hr: { type: Number, required: true }, // heart rate BPM
+    source: { type: String, enum: ['simulated', 'ble'], default: 'simulated' },
     timestamp: { type: Date, default: Date.now },
   },
   { _id: false }

@@ -16,6 +16,7 @@ const AdminDashboard = () => {
   const [incidents, setIncidents] = useState([]);
   const [userLocations, setUserLocations] = useState([]); // [{ tripId, userId, userName, lat, lng, alertLevel }]
   const [liveHR, setLiveHR] = useState({});   // { userId: hr }
+  const [liveSource, setLiveSource] = useState({}); // { userId: source }
   const [selectedIncident, setSelectedIncident] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null); // { tripId, userId, userName, loc, alertLevel }
   const [activeTrips, setActiveTrips] = useState([]);
@@ -68,8 +69,9 @@ const AdminDashboard = () => {
     });
 
     // Live biometrics
-    socket.on('user-biometric', ({ tripId, userId, hr }) => {
+    socket.on('user-biometric', ({ tripId, userId, hr, source }) => {
       setLiveHR((prev) => ({ ...prev, [userId]: hr }));
+      setLiveSource((prev) => ({ ...prev, [userId]: source }));
     });
 
     // New incident (Warning auto-triggered or manual)
@@ -252,6 +254,7 @@ const AdminDashboard = () => {
               <UserVitalsPanel
                 selectedUser={selectedUser}
                 liveHR={selectedUser ? liveHR[selectedUser.userId?._id || selectedUser.userId] : null}
+                liveSource={selectedUser ? liveSource[selectedUser.userId?._id || selectedUser.userId] : null}
                 liveLoc={
                   (selectedUser ? userLocations.find((u) => u.tripId === selectedUser.tripId) : null)
                   || selectedUser?.loc

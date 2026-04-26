@@ -41,15 +41,15 @@ module.exports = (io) => {
     });
 
     // ── Biometric update from user ──────────────────────────────
-    socket.on('biometric-update', async ({ tripId, userId, hr }) => {
+    socket.on('biometric-update', async ({ tripId, userId, hr, source }) => {
       try {
         await Trip.findByIdAndUpdate(tripId, {
           currentHR: hr,
-          $push: { biometricLog: { hr, timestamp: new Date() } },
+          $push: { biometricLog: { hr, source: source || 'simulated', timestamp: new Date() } },
         });
 
         // Broadcast to admin room
-        io.to('admin-room').emit('user-biometric', { tripId, userId, hr, timestamp: Date.now() });
+        io.to('admin-room').emit('user-biometric', { tripId, userId, hr, source: source || 'simulated', timestamp: Date.now() });
 
         // ── Crisis threshold logic ──────────────────────────────
         if (hr > HR_THRESHOLD) {

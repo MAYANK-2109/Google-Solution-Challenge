@@ -2,10 +2,12 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import { useBiometrics } from '../hooks/useBiometrics';
+import { useBluetoothHR } from '../hooks/useBluetoothHR';
 import { useGeolocation } from '../hooks/useGeolocation';
 import Navbar from '../components/shared/Navbar';
 import TripControl from '../components/user/TripControl';
 import BiometricPanel from '../components/user/BiometricPanel';
+import SmartWatchConnector from '../components/user/SmartWatchConnector';
 import SOSButton from '../components/user/SOSButton';
 import QuickCall from '../components/user/QuickCall';
 import axios from 'axios';
@@ -23,8 +25,11 @@ const UserDashboard = () => {
   const [adminMessages, setAdminMessages] = useState([]);
   const posRef = useRef({ lat: 15.3173, lng: 73.9278 });
 
+  // Bluetooth
+  const bluetooth = useBluetoothHR();
+
   // Biometrics
-  const { heartRate, trend } = useBiometrics(activeTrip?._id, user?._id, !!activeTrip, isCrisis);
+  const { heartRate, trend } = useBiometrics(activeTrip?._id, user?._id, !!activeTrip, isCrisis, bluetooth.hr);
 
   // Geolocation (stores latest position in posRef)
   useGeolocation(activeTrip?._id, user?._id, !!activeTrip);
@@ -136,7 +141,8 @@ const UserDashboard = () => {
         ) : (
           <>
             <TripControl activeTrip={activeTrip} onTripStart={handleTripStart} onTripEnd={handleTripEnd} />
-            <BiometricPanel heartRate={heartRate} trend={trend} isActive={!!activeTrip} />
+            <BiometricPanel heartRate={heartRate} trend={trend} isActive={!!activeTrip} isBluetoothConnected={bluetooth.connected} />
+            <SmartWatchConnector bluetooth={bluetooth} />
             <SOSButton
               activeTrip={activeTrip}
               userId={user?._id}
