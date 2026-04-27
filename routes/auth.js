@@ -26,10 +26,22 @@ router.post(
 
     try {
       const { name, email, password, role, phone } = req.body;
+      const assignedRole = role || 'user';
+
+      // Constraint: Security (Admin) accounts must use the specific email schema
+      if (assignedRole === 'admin') {
+        const securityEmailRegex = /^security\.\d{5}@saheli\.com$/;
+        if (!securityEmailRegex.test(email)) {
+          return res.status(403).json({ 
+            message: 'Security registration failed. Email must follow the format: security.<5-digit-id>@saheli.com' 
+          });
+        }
+      }
+
       const existing = await User.findOne({ email });
       if (existing) return res.status(409).json({ message: 'Email already registered' });
 
-      const user = await User.create({ name, email, password, role: role || 'user', phone });
+      const user = await User.create({ name, email, password, role: assignedRole, phone });
       const token = signToken(user);
       res.status(201).json({ token, user });
     } catch (err) {
