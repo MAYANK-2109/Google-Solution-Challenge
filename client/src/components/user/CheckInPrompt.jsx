@@ -19,7 +19,7 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
 
   // "Always Fresh" Data Box - completely immune to stale closures
   const dataBox = useRef({ activeTrip, userId, socket, currentLocation, currentHR, onSOSTriggered });
-  
+
   // Keep the Data Box updated on every single render
   useEffect(() => {
     dataBox.current = { activeTrip, userId, socket, currentLocation, currentHR, onSOSTriggered };
@@ -35,10 +35,10 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
     if (!trip?._id) return;
 
     // 2. Notify User UI
-    toast.error(isTimeout 
-      ? '⏰ No response detected — triggering SOS for your safety!' 
-      : '🆘 SOS triggered! Security is being alerted immediately.', 
-    { duration: 8000 });
+    toast.error(isTimeout
+      ? '⏰ No response detected — triggering SOS for your safety!'
+      : '🆘 SOS triggered! Security is being alerted immediately.',
+      { duration: 8000 });
 
     try {
       // 3. API Call
@@ -87,11 +87,11 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
     // We must use functional state update to guarantee we get the latest 'visible' state
     setVisible((prevVisible) => {
       if (prevVisible) return true; // Keep it visible, don't restart logic
-      
+
       // If it wasn't visible, start the logic
       setCountdown(PROMPT_TIMEOUT);
       setLoading(true);
-      
+
       // Fetch message asynchronously (we don't wait here because state updates are async)
       axios.post(`${API}/checkin/generate-message`, {})
         .then(({ data }) => setMessage(data.message))
@@ -101,11 +101,11 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
       // Start 30-second countdown
       if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
       let remaining = PROMPT_TIMEOUT;
-      
+
       countdownIntervalRef.current = setInterval(() => {
         remaining -= 1;
         setCountdown(remaining);
-        
+
         if (remaining <= 0) {
           clearInterval(countdownIntervalRef.current);
           triggerSOS(true);
@@ -143,7 +143,7 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
       if (mainIntervalRef.current) clearInterval(mainIntervalRef.current);
       if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
     };
-  }, [activeTrip?._id, activeTrip?.checkInIntervalMinutes, activeTrip?.alertLevel]); 
+  }, [activeTrip?._id, activeTrip?.checkInIntervalMinutes, activeTrip?.alertLevel]);
   // ^^^ TINY dependency array! It NEVER resets due to heart rate or location changes!
 
   // Audio Recording
@@ -234,3 +234,4 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
 };
 
 export default CheckInPrompt;
+// MAYANK CHANDRIKAPURE
