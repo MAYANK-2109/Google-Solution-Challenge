@@ -6,6 +6,7 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const connectDB = require('./config/db');
 const socketHandler = require('./socket/socketHandler');
+const Incident = require('./models/Incident');
 
 // ── Connect Database ────────────────────────────────────────
 connectDB();
