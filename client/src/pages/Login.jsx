@@ -83,9 +83,8 @@ const Login = () => {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl shadow-xl shadow-blue-500/30 mb-4">
             <Shield size={28} className="text-white" />
           </div>
-          <h1 className="text-3xl font-black tracking-tight">
-            <span className="text-brand-text">SAHE</span>
-            <span className="text-gradient">LI</span>
+          <h1 className="text-3xl font-black tracking-tight text-brand-accent dark:text-white">
+            SAHELI
           </h1>
           <p className="text-brand-muted mt-1 text-sm">IoT Safety Platform · Sign in to continue</p>
         </div>
