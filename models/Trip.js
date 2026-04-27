@@ -33,6 +33,8 @@ const tripSchema = new mongoose.Schema(
     },
     currentHR: { type: Number, default: 70 },
     alertLevel: { type: String, enum: ['normal', 'warning', 'sos'], default: 'normal' },
+    checkInIntervalMinutes: { type: Number, default: 10 },
+    lastCheckInAt: { type: Date },
   },
   { timestamps: true }
 );

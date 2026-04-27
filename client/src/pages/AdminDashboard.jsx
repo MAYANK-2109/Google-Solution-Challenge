@@ -136,6 +136,11 @@ const AdminDashboard = () => {
       );
     });
 
+    // Traveller confirmed check-in
+    socket.on('checkin-ok', ({ tripId, userId }) => {
+      toast.success(`✅ User confirmed safety check-in`, { duration: 3000, icon: '💚' });
+    });
+
     return () => {
       socket.off('user-location');
       socket.off('user-biometric');
@@ -144,6 +149,7 @@ const AdminDashboard = () => {
       socket.off('alert-cleared');
       socket.off('admin-notification');
       socket.off('incident-updated');
+      socket.off('checkin-ok');
     };
   }, [socket]);
 

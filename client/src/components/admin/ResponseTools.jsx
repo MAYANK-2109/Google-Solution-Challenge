@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Phone, MapPin, CheckCircle, MessageCircle, AlertOctagon, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Phone, MapPin, CheckCircle, MessageCircle, AlertOctagon, Loader2, Volume2 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { useSocket } from '../../contexts/SocketContext';
@@ -13,6 +13,29 @@ const ResponseTools = ({ selectedIncident, selectedUser, liveLoc, onResolved, ch
   const [resolving, setResolving] = useState(false);
   const [message, setMessage] = useState('');
   const [sendingMsg, setSendingMsg] = useState(false);
+  const [audioSrc, setAudioSrc] = useState(null);
+  const [loadingAudio, setLoadingAudio] = useState(false);
+
+  // Fetch audio when selected incident changes
+  useEffect(() => {
+    setAudioSrc(null);
+    if (!selectedIncident?._id) return;
+
+    const fetchAudio = async () => {
+      setLoadingAudio(true);
+      try {
+        const { data } = await axios.get(`${API}/incidents/${selectedIncident._id}/audio-clip`);
+        if (data.audioData) {
+          setAudioSrc(`data:${data.mimeType};base64,${data.audioData}`);
+        }
+      } catch {
+        // No audio available — that's fine
+      } finally {
+        setLoadingAudio(false);
+      }
+    };
+    fetchAudio();
+  }, [selectedIncident?._id]);
 
   const forwardLocation = async () => {
     const loc = liveLoc || selectedUser?.loc || selectedIncident?.location;
@@ -94,6 +117,16 @@ const ResponseTools = ({ selectedIncident, selectedUser, liveLoc, onResolved, ch
     if (!selectedIncident) return;
     try {
       await axios.patch(`${API}/incidents/${selectedIncident._id}/acknowledge`);
+
+      // Notify the traveller via socket
+      const tripId = typeof selectedIncident.tripId === 'object'
+        ? selectedIncident.tripId?._id
+        : selectedIncident.tripId;
+      socket?.emit('incident-acknowledged', {
+        tripId,
+        adminName: user?.name || 'Security',
+      });
+
       toast.success('Incident acknowledged');
       onResolved?.(selectedIncident._id, 'acknowledged');
     } catch (err) {
@@ -143,6 +176,27 @@ const ResponseTools = ({ selectedIncident, selectedUser, liveLoc, onResolved, ch
               <p className="text-sm text-purple-200 leading-relaxed">
                 {selectedIncident.aiRiskReport}
               </p>
+            </div>
+          )}
+
+          {/* Audio Playback */}
+          {(audioSrc || loadingAudio) && (
+            <div className="bg-sky-500/10 border border-sky-500/30 rounded-xl p-4 animate-fade-in">
+              <div className="flex items-center gap-2 mb-2">
+                <Volume2 size={16} className="text-sky-400" />
+                <span className="text-xs font-bold text-sky-400 uppercase tracking-wider">SOS Audio Recording</span>
+              </div>
+              {loadingAudio ? (
+                <div className="flex items-center gap-2 text-brand-muted text-sm">
+                  <Loader2 size={14} className="animate-spin" />
+                  Loading audio...
+                </div>
+              ) : (
+                <audio controls className="w-full mt-1" style={{ height: '36px' }}>
+                  <source src={audioSrc} />
+                  Your browser does not support audio playback.
+                </audio>
+              )}
             </div>
           )}
 

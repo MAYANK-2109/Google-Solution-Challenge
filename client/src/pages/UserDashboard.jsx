@@ -10,6 +10,7 @@ import BiometricPanel from '../components/user/BiometricPanel';
 import SmartWatchConnector from '../components/user/SmartWatchConnector';
 import SOSButton from '../components/user/SOSButton';
 import QuickCall from '../components/user/QuickCall';
+import CheckInPrompt from '../components/user/CheckInPrompt';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { Shield, Bell } from 'lucide-react';
@@ -72,10 +73,20 @@ const UserDashboard = () => {
       toast.success(`Security: ${message}`, { duration: 6000 });
     });
 
+    socket.on('sos-acknowledged', ({ message }) => {
+      toast.success(message, { duration: 8000, icon: '🛡️' });
+    });
+
+    socket.on('sos-duplicate', ({ message }) => {
+      toast(message, { duration: 5000, icon: '⚠️' });
+    });
+
     return () => {
       socket.off('crisis-alert');
       socket.off('alert-resolved');
       socket.off('admin-message');
+      socket.off('sos-acknowledged');
+      socket.off('sos-duplicate');
     };
   }, [socket]);
 
@@ -151,6 +162,14 @@ const UserDashboard = () => {
               onSOSTriggered={() => setIsCrisis(true)}
             />
             <QuickCall activeTrip={activeTrip} />
+            <CheckInPrompt
+              activeTrip={activeTrip}
+              userId={user?._id}
+              onSOSTriggered={() => setIsCrisis(true)}
+              socket={socket}
+              currentLocation={posRef.current}
+              currentHR={heartRate}
+            />
           </>
         )}
       </main>

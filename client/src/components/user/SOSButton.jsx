@@ -96,6 +96,13 @@ const SOSButton = ({ activeTrip, userId, currentHR, currentLocation, onSOSTrigge
 
   const triggerSOS = useCallback(async () => {
     if (!activeTrip || triggered || loading) return;
+
+    // Block duplicate SOS
+    if (activeTrip.alertLevel === 'sos') {
+      toast('SOS already active — security is responding.', { icon: '⚠️', duration: 4000 });
+      return;
+    }
+
     setLoading(true);
     try {
       const payload = {

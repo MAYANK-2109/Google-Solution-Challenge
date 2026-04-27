@@ -20,6 +20,8 @@ const incidentSchema = new mongoose.Schema(
       hr: { type: Number },
     },
     aiRiskReport: { type: String, default: '' },
+    audioData: { type: String },
+    audioMimeType: { type: String, default: 'audio/webm' },
   },
   { timestamps: true }
 );

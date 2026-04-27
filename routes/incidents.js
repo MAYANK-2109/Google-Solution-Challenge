@@ -14,6 +14,18 @@ router.post('/', verifyToken, async (req, res) => {
   try {
     const { tripId, type, location, biometricSnapshot, notes } = req.body;
 
+    // SOS Deduplication: block if user already has an active SOS
+    if (type === 'SOS') {
+      const existingActive = await Incident.findOne({
+        userId: req.user.id,
+        type: 'SOS',
+        status: { $in: ['open', 'acknowledged'] },
+      });
+      if (existingActive) {
+        return res.status(409).json({ message: 'You already have an active SOS. Please wait for it to be resolved.' });
+      }
+    }
+
     const severity =
       type === 'SOS' ? 'critical' : type === 'Warning' ? 'high' : 'low';
 
@@ -92,6 +104,13 @@ router.post('/:id/audio', verifyToken, upload.single('audio'), async (req, res) 
 
 
     incident.aiRiskReport = aiRiskReport;
+
+    // Save audio for admin playback
+    if (req.file && req.file.size > 100) {
+      incident.audioData = req.file.buffer.toString('base64');
+      incident.audioMimeType = req.file.mimetype || 'audio/webm';
+    }
+
     await incident.save();
 
     const populated = await incident.populate('userId', 'name email avatarInitials');
@@ -105,6 +124,19 @@ router.post('/:id/audio', verifyToken, upload.single('audio'), async (req, res) 
   } catch (err) {
     console.error('Audio Analysis Error:', err);
     res.status(500).json({ message: 'Failed to analyze audio' });
+  }
+});
+
+// GET /api/incidents/:id/audio-clip — Retrieve stored audio for admin playback
+router.get('/:id/audio-clip', verifyToken, async (req, res) => {
+  try {
+    const incident = await Incident.findById(req.params.id).select('audioData audioMimeType');
+    if (!incident || !incident.audioData) {
+      return res.status(404).json({ message: 'No audio available for this incident' });
+    }
+    res.json({ audioData: incident.audioData, mimeType: incident.audioMimeType });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 

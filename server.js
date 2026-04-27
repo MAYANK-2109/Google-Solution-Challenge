@@ -75,6 +75,7 @@ app.get('/health', (req, res) => res.json({ status: 'OK', timestamp: new Date() 
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/trips', require('./routes/trips'));
 app.use('/api/incidents', require('./routes/incidents'));
+app.use('/api/checkin', require('./routes/checkin'));
 app.use('/api/stats', require('./routes/stats'));
 
 // ── 404 Fallback ────────────────────────────────────────────

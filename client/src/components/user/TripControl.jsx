@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { MapPin, Navigation, CheckCircle, Clock, Loader2 } from 'lucide-react';
+import { MapPin, Navigation, CheckCircle, Clock, Loader2, Bell } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { formatDistanceToNow } from 'date-fns';
@@ -21,6 +21,7 @@ const TripControl = ({ onTripStart, onTripEnd, activeTrip }) => {
   const [journeyTime, setJourneyTime] = useState('');
   const [currentPosition, setCurrentPosition] = useState(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [checkInInterval, setCheckInInterval] = useState(10);
   const searchDebounce = useRef(null);
 
   // Elapsed timer
@@ -135,6 +136,7 @@ const TripControl = ({ onTripStart, onTripEnd, activeTrip }) => {
     try {
       const { data } = await axios.post(`${API}/trips/start`, {
         destinationLabel: destination || 'Hotel Campus',
+        checkInIntervalMinutes: checkInInterval,
       });
       toast.success('Safe Journey started! GPS & vitals are being monitored.');
       onTripStart(data);
@@ -249,6 +251,31 @@ const TripControl = ({ onTripStart, onTripEnd, activeTrip }) => {
               <p className="text-xs text-brand-muted mt-2">Estimated journey time: {journeyTime}</p>
             )}
           </div>
+
+          {/* Check-in frequency picker */}
+          <div className="mb-3">
+            <label className="flex items-center gap-2 text-xs font-semibold text-brand-muted uppercase tracking-wider mb-1.5">
+              <Bell size={12} /> Safety Check-In Frequency
+            </label>
+            <div className="grid grid-cols-4 gap-2">
+              {[5, 10, 15, 30].map((min) => (
+                <button
+                  key={min}
+                  type="button"
+                  onClick={() => setCheckInInterval(min)}
+                  className={`py-2 rounded-xl text-sm font-bold border transition-all duration-200 ${
+                    checkInInterval === min
+                      ? 'bg-blue-500/20 border-blue-500/50 text-blue-400'
+                      : 'bg-brand-surface border-brand-border text-brand-muted hover:border-blue-500/30'
+                  }`}
+                >
+                  {min}m
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-brand-muted mt-1">We'll check on you every {checkInInterval} minutes during your journey</p>
+          </div>
+
           <button
             id="btn-start-trip"
             onClick={startTrip}

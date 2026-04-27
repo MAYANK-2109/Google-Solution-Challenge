@@ -95,6 +95,19 @@ module.exports = (io) => {
     // ── SOS triggered by user ───────────────────────────────────
     socket.on('sos-trigger', async ({ tripId, userId, lat, lng, hr }) => {
       try {
+        // SOS Deduplication: check if user already has an active SOS
+        const existingActive = await Incident.findOne({
+          userId,
+          type: 'SOS',
+          status: { $in: ['open', 'acknowledged'] },
+        });
+        if (existingActive) {
+          socket.emit('sos-duplicate', {
+            message: 'Your SOS is already active. Security is responding.',
+          });
+          return;
+        }
+
         const incident = await Incident.create({
           userId,
           tripId,
@@ -154,6 +167,22 @@ module.exports = (io) => {
       } catch (err) {
         console.error('resolve-alert error:', err.message);
       }
+    });
+
+    // ── Admin acknowledges incident → notify traveller ──────────
+    socket.on('incident-acknowledged', ({ tripId, adminName }) => {
+      io.to(`trip-${tripId}`).emit('sos-acknowledged', {
+        message: `🛡️ Security (${adminName || 'Team'}) has acknowledged your alert and is responding.`,
+        adminName,
+        timestamp: Date.now(),
+      });
+      console.log(`✅ Admin acknowledged incident on trip-${tripId}`);
+    });
+
+    // ── User confirms check-in → notify admin ───────────────────
+    socket.on('checkin-ok', ({ tripId, userId }) => {
+      io.to('admin-room').emit('checkin-ok', { tripId, userId, timestamp: Date.now() });
+      console.log(`✅ User ${userId} confirmed check-in on trip-${tripId}`);
     });
 
     // ── Disconnect ──────────────────────────────────────────────

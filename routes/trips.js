@@ -12,6 +12,8 @@ router.post('/start', verifyToken, async (req, res) => {
     const trip = await Trip.create({
       userId: req.user.id,
       destinationLabel: req.body.destinationLabel || 'Campus Area',
+      checkInIntervalMinutes: req.body.checkInIntervalMinutes || 10,
+      lastCheckInAt: new Date(),
     });
     res.status(201).json(trip);
   } catch (err) {
