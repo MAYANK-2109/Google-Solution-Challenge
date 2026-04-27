@@ -1,9 +1,10 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { API_URL as API } from '../constants';
 
 const AuthContext = createContext(null);
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 
 // Setup Axios Interceptor for Auth
 axios.interceptors.request.use((config) => {
