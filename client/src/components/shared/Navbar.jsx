@@ -24,8 +24,8 @@ const Navbar = () => {
             <Shield size={18} className="text-white" />
           </div>
           <div className="leading-none">
-            <span className="font-black text-lg text-brand-text tracking-tight">Safe</span>
-            <span className="font-black text-lg text-gradient tracking-tight">Stay</span>
+            <span className="font-black text-lg text-brand-text tracking-tight">SAHE</span>
+            <span className="font-black text-lg text-gradient tracking-tight">LI</span>
           </div>
         </Link>
 

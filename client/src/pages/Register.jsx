@@ -43,7 +43,7 @@ const Register = () => {
             <Shield size={28} className="text-white" />
           </div>
           <h1 className="text-3xl font-black tracking-tight">
-            <span className="text-brand-text">Safe</span><span className="text-gradient">Stay</span>
+            <span className="text-brand-text">SAHE</span><span className="text-gradient">LI</span>
           </h1>
           <p className="text-brand-muted mt-1 text-sm">Create your safety account</p>
         </div>
