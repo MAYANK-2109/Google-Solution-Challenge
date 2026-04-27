@@ -36,16 +36,16 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
     if (activeTrip?._id) {
       // Strictly use local Date.now() to completely avoid server-client clock skew
       lastCheckInRef.current = Date.now();
-      promptVisibleRef.current = false;
-      setVisible(false);
+      promptVisibleRef.current = true;
+      setVisible(true);
       if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
     }
   }, [activeTrip?._id]);
 
   const triggerSOS = async (isTimeout = false) => {
     if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
-    promptVisibleRef.current = false;
-    setVisible(false);
+    promptVisibleRef.current = true;
+    setVisible(true);
     lastCheckInRef.current = Date.now(); // reset clock just in case
 
     const trip = activeTripRef.current;
@@ -81,8 +81,8 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
 
   const handleOkay = async () => {
     if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
-    promptVisibleRef.current = false;
-    setVisible(false);
+    promptVisibleRef.current = true;
+    setVisible(true);
 
     // EXACTLY AS REQUESTED: Reset timestamp immediately upon answering
     lastCheckInRef.current = Date.now();
