@@ -80,10 +80,12 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
   }, []);
 
   // User confirms they are okay
-  const handleOkay = async () => {
+  const handleOkay = useCallback(async () => {
     if (countdownRef.current) clearInterval(countdownRef.current);
     setVisible(false);
     promptActiveRef.current = false;
+
+    if (!activeTrip?._id) return;
 
     try {
       await axios.post(`${API}/checkin/confirm`, { tripId: activeTrip._id });
@@ -91,13 +93,15 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
     } catch { /* silent */ }
 
     toast.success("Great! Stay safe out there! 💪", { duration: 3000 });
-  };
+  }, [activeTrip?._id, socket, userId]);
 
   // User says they are NOT okay → trigger SOS
-  const handleNotOkay = async (isTimeout = false) => {
+  const handleNotOkay = useCallback(async (isTimeout = false) => {
     if (countdownRef.current) clearInterval(countdownRef.current);
     setVisible(false);
     promptActiveRef.current = false;
+
+    if (!activeTrip?._id) return;
 
     const toastMsg = isTimeout
       ? '⏰ No response detected — triggering SOS for your safety!'
@@ -111,7 +115,7 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
         type: 'SOS',
         location: currentLocation,
         biometricSnapshot: { hr: currentHR },
-        notes: isTimeout ? 'Auto-SOS: Check-in unanswered for 60 seconds' : 'SOS: Traveller reported not okay during check-in',
+        notes: isTimeout ? `Auto-SOS: Check-in unanswered for ${PROMPT_TIMEOUT} seconds` : 'SOS: Traveller reported not okay during check-in',
       };
       const { data: incident } = await axios.post(`${API}/incidents`, payload);
 
@@ -135,9 +139,31 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
         toast.error('SOS failed. Please use the SOS button manually.');
       }
     }
-  };
+  }, [activeTrip?._id, currentLocation, currentHR, socket, userId, onSOSTriggered]);
 
-  // Record 7s audio and upload for AI analysis
+  // Show the check-in prompt
+  const showPrompt = useCallback(async () => {
+    if (promptActiveRef.current) return;
+    promptActiveRef.current = true;
+    setLoading(true);
+    await fetchMessage();
+    setLoading(false);
+    setCountdown(PROMPT_TIMEOUT);
+    setVisible(true);
+
+    // Start 30s countdown
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    let remaining = PROMPT_TIMEOUT;
+    countdownRef.current = setInterval(() => {
+      remaining -= 1;
+      setCountdown(remaining);
+      if (remaining <= 0) {
+        clearInterval(countdownRef.current);
+        // Auto-trigger SOS on timeout
+        handleNotOkay(true);
+      }
+    }, 1000);
+  }, [fetchMessage, handleNotOkay]);
   const startAudioRecording = async (incidentId) => {
     try {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error('No mic');
