@@ -31,15 +31,17 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
     socketRef.current = socket;
   });
 
-  // Trip Init: Reset clock when a new trip starts
+  // Trip Init: Reset clock when a new trip starts or check-in confirms
   useEffect(() => {
     if (activeTrip?._id) {
-      lastCheckInRef.current = Date.now();
+      lastCheckInRef.current = activeTrip.lastCheckInAt 
+        ? new Date(activeTrip.lastCheckInAt).getTime() 
+        : Date.now();
       promptVisibleRef.current = false;
       setVisible(false);
       if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
     }
-  }, [activeTrip?._id]);
+  }, [activeTrip?._id, activeTrip?.lastCheckInAt]);
 
   const triggerSOS = async (isTimeout = false) => {
     if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
@@ -99,13 +101,16 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
   const startPrompt = () => {
     promptVisibleRef.current = true;
     setVisible(true);
-    setLoading(true);
+    setLoading(false);
     setCountdown(PROMPT_TIMEOUT);
 
-    axios.post(`${API}/checkin/generate-message`, {})
-      .then(({ data }) => setMessage(data.message))
-      .catch(() => setMessage("Hey! Just checking in — are you doing alright? Stay safe! 😊"))
-      .finally(() => setLoading(false));
+    // Hardcoded messages for instantaneous rendering as requested
+    const messages = [
+      "Hey, just checking in on you! Everything okay on your end? Remember, I'm watching over you. Stay safe! 🛡️",
+      "Hi there! Quick check — are you doing alright? Just making sure everything's smooth on your journey! 😊",
+      "Hey you! Still out there conquering the world? Just wanted to make sure you're safe and sound! ✨"
+    ];
+    setMessage(messages[Math.floor(Math.random() * messages.length)]);
 
     if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
     let remaining = PROMPT_TIMEOUT;
