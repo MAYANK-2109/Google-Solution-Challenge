@@ -34,14 +34,13 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
   // Trip Init: Reset clock when a new trip starts or check-in confirms
   useEffect(() => {
     if (activeTrip?._id) {
-      lastCheckInRef.current = activeTrip.lastCheckInAt 
-        ? new Date(activeTrip.lastCheckInAt).getTime() 
-        : Date.now();
+      // Strictly use local Date.now() to completely avoid server-client clock skew
+      lastCheckInRef.current = Date.now();
       promptVisibleRef.current = false;
       setVisible(false);
       if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
     }
-  }, [activeTrip?._id, activeTrip?.lastCheckInAt]);
+  }, [activeTrip?._id]);
 
   const triggerSOS = async (isTimeout = false) => {
     if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
@@ -132,8 +131,9 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
   useEffect(() => {
     if (!activeTrip?._id || activeTrip?.alertLevel === 'sos') return;
 
+    // HARDCODED DEMO OVERRIDE: If 1 minute is selected, trigger in 10 seconds for quick testing
     const intervalMinutes = activeTrip.checkInIntervalMinutes || 10;
-    const intervalMs = intervalMinutes * 60 * 1000;
+    const intervalMs = intervalMinutes === 1 ? 10 * 1000 : intervalMinutes * 60 * 1000;
 
     const ticker = setInterval(() => {
       const now = Date.now();
