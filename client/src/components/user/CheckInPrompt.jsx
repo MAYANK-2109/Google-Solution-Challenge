@@ -107,6 +107,11 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
   }, [fetchMessage, triggerSOS]);
 
   // STABLE INTERVAL: This only resets if the trip or interval duration changes
+  const showPromptRef = useRef(showPrompt);
+  useEffect(() => {
+    showPromptRef.current = showPrompt;
+  }, [showPrompt]);
+
   useEffect(() => {
     if (!activeTrip?._id || activeTrip?.alertLevel === 'sos') {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -120,13 +125,13 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
 
     // Set new interval
     intervalRef.current = setInterval(() => {
-      showPrompt();
+      if (showPromptRef.current) showPromptRef.current();
     }, intervalMs);
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [activeTrip?._id, activeTrip?.checkInIntervalMinutes, activeTrip?.alertLevel, showPrompt]);
+  }, [activeTrip?._id, activeTrip?.checkInIntervalMinutes, activeTrip?.alertLevel]);
 
   const handleOkay = async () => {
     if (countdownRef.current) clearInterval(countdownRef.current);
