@@ -11,6 +11,57 @@ const signToken = (user) =>
     { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
   );
 
+const generateCaptchaCode = () => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+  let result = '';
+  for (let i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+};
+
+// POST /api/auth/forgot-password
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const code = generateCaptchaCode();
+    user.resetCode = code;
+    await user.save();
+
+    res.json({ code, message: 'Captcha generated' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/auth/reset-password
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body;
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+    
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    
+    if (!user.resetCode || user.resetCode !== code) {
+      return res.status(400).json({ message: 'Invalid captcha code' });
+    }
+
+    user.password = newPassword;
+    user.resetCode = null;
+    await user.save();
+
+    res.json({ message: 'Password reset successful' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // POST /api/auth/register
 router.post(
   '/register',
@@ -33,7 +84,7 @@ router.post(
         const securityEmailRegex = /^security\.\d{5}@saheli\.com$/;
         if (!securityEmailRegex.test(email)) {
           return res.status(403).json({ 
-            message: 'Security registration failed. Email must follow the format: security.<5-digit-id>@saheli.com' 
+            message: 'You are not allowed to login as security please try again as traveller' 
           });
         }
       }

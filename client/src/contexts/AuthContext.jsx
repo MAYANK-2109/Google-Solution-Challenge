@@ -52,6 +52,16 @@ export const AuthProvider = ({ children }) => {
     return data.user;
   }, []);
 
+  const requestPasswordReset = useCallback(async (email) => {
+    const { data } = await axios.post(`${API}/auth/forgot-password`, { email });
+    return data;
+  }, []);
+
+  const resetPassword = useCallback(async (email, code, newPassword) => {
+    const { data } = await axios.post(`${API}/auth/reset-password`, { email, code, newPassword });
+    return data;
+  }, []);
+
   const logout = useCallback(() => {
     localStorage.removeItem('ss_token');
     setToken(null);
@@ -60,7 +70,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout, requestPasswordReset, resetPassword }}>
       {children}
     </AuthContext.Provider>
   );

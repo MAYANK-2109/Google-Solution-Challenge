@@ -1,16 +1,56 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Shield, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
+import { Shield, Eye, EyeOff, AlertCircle, Loader2, Key, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const Login = () => {
-  const { login } = useAuth();
+  const { login, requestPasswordReset, resetPassword } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({ email: '', password: '' });
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Forgot password state
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotStep, setForgotStep] = useState(1);
+  const [forgotForm, setForgotForm] = useState({ email: '', code: '', newPassword: '' });
+  const [captchaDisplay, setCaptchaDisplay] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+
+  const handleForgotChange = (e) => setForgotForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+
+  const handleRequestReset = async (e) => {
+    e.preventDefault();
+    setForgotLoading(true);
+    try {
+      const data = await requestPasswordReset(forgotForm.email);
+      setCaptchaDisplay(data.code);
+      setForgotStep(2);
+      toast.success('Captcha generated!');
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to request reset');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleResetSubmit = async (e) => {
+    e.preventDefault();
+    setForgotLoading(true);
+    try {
+      await resetPassword(forgotForm.email, forgotForm.code, forgotForm.newPassword);
+      toast.success('Password reset successfully! You can now log in.');
+      setShowForgotModal(false);
+      setForgotStep(1);
+      setForgotForm({ email: '', code: '', newPassword: '' });
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Reset failed');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
 
   const handleChange = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
 
@@ -77,7 +117,16 @@ const Login = () => {
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-brand-muted uppercase tracking-wider mb-1.5">Password</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-brand-muted uppercase tracking-wider">Password</label>
+                <button
+                  type="button"
+                  onClick={() => setShowForgotModal(true)}
+                  className="text-xs text-brand-accent hover:text-brand-accent-hover font-semibold transition-colors"
+                >
+                  Forgot password?
+                </button>
+              </div>
               <div className="relative">
                 <input
                   id="login-password"
@@ -120,6 +169,91 @@ const Login = () => {
           </p>
         </div>
       </div>
+
+      {/* Forgot Password Modal */}
+      {showForgotModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-bg/80 backdrop-blur-sm animate-fade-in">
+          <div className="card shadow-2xl w-full max-w-sm relative">
+            <button
+              onClick={() => {
+                setShowForgotModal(false);
+                setForgotStep(1);
+              }}
+              className="absolute top-4 right-4 text-brand-muted hover:text-brand-text transition-colors"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-brand-surface border border-brand-border rounded-lg">
+                <Key size={20} className="text-brand-accent" />
+              </div>
+              <h2 className="text-xl font-bold text-brand-text">Reset Password</h2>
+            </div>
+
+            {forgotStep === 1 ? (
+              <form onSubmit={handleRequestReset} className="space-y-4">
+                <p className="text-sm text-brand-muted">Enter your email to receive a secure captcha code to reset your password.</p>
+                <div>
+                  <label className="block text-xs font-semibold text-brand-muted uppercase tracking-wider mb-1.5">Email</label>
+                  <input
+                    name="email"
+                    type="email"
+                    required
+                    value={forgotForm.email}
+                    onChange={handleForgotChange}
+                    className="input-field"
+                    placeholder="you@example.com"
+                  />
+                </div>
+                <button type="submit" disabled={forgotLoading} className="btn-primary w-full flex items-center justify-center gap-2">
+                  {forgotLoading ? <Loader2 size={18} className="animate-spin" /> : 'Get Captcha Code'}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleResetSubmit} className="space-y-4">
+                <div className="p-4 bg-brand-surface border border-brand-border rounded-xl text-center">
+                  <p className="text-xs text-brand-muted mb-2 uppercase tracking-wider font-semibold">Your Captcha Code</p>
+                  <div className="text-3xl font-mono font-bold text-brand-text tracking-[0.2em] bg-brand-bg py-2 rounded-lg border border-brand-border select-all">
+                    {captchaDisplay}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-brand-muted uppercase tracking-wider mb-1.5">Enter Captcha Code</label>
+                  <input
+                    name="code"
+                    type="text"
+                    required
+                    value={forgotForm.code}
+                    onChange={handleForgotChange}
+                    className="input-field font-mono"
+                    placeholder="Enter the 6 letters above"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-semibold text-brand-muted uppercase tracking-wider mb-1.5">New Password</label>
+                  <input
+                    name="newPassword"
+                    type="password"
+                    required
+                    minLength={6}
+                    value={forgotForm.newPassword}
+                    onChange={handleForgotChange}
+                    className="input-field"
+                    placeholder="Min 6 characters"
+                  />
+                </div>
+
+                <button type="submit" disabled={forgotLoading} className="btn-primary w-full flex items-center justify-center gap-2">
+                  {forgotLoading ? <Loader2 size={18} className="animate-spin" /> : 'Confirm Reset'}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

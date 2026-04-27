@@ -10,6 +10,7 @@ const userSchema = new mongoose.Schema(
     phone: { type: String, default: '' },
     avatarInitials: { type: String },
     isActive: { type: Boolean, default: true },
+    resetCode: { type: String, default: null },
   },
   { timestamps: true }
 );
