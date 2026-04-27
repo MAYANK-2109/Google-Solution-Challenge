@@ -257,17 +257,16 @@ const TripControl = ({ onTripStart, onTripEnd, activeTrip }) => {
             <label className="flex items-center gap-2 text-xs font-semibold text-brand-muted uppercase tracking-wider mb-1.5">
               <Bell size={12} /> Safety Check-In Frequency
             </label>
-            <div className="grid grid-cols-4 gap-2">
-              {[5, 10, 15, 30].map((min) => (
+            <div className="grid grid-cols-3 gap-2">
+              {[1, 3, 5, 10, 15, 30].map((min) => (
                 <button
                   key={min}
                   type="button"
                   onClick={() => setCheckInInterval(min)}
-                  className={`py-2 rounded-xl text-sm font-bold border transition-all duration-200 ${
-                    checkInInterval === min
+                  className={`py-2 rounded-xl text-sm font-bold border transition-all duration-200 ${checkInInterval === min
                       ? 'bg-blue-500/20 border-blue-500/50 text-blue-400'
                       : 'bg-brand-surface border-brand-border text-brand-muted hover:border-blue-500/30'
-                  }`}
+                    }`}
                 >
                   {min}m
                 </button>

@@ -224,10 +224,10 @@ const AdminDashboard = () => {
                 <span className="text-xs font-bold text-brand-text uppercase tracking-widest">Live Map · {activeCount} Active</span>
               </div>
               <div style={{ height: 'calc(100% - 45px)' }}>
-                <LiveMap 
-                  userLocations={userLocations} 
+                <LiveMap
+                  userLocations={userLocations}
                   onSelectUser={handleSelectMapUser}
-                  centerPoint={selectedUser?.loc || selectedIncident?.location || null} 
+                  centerPoint={selectedUser?.loc || selectedIncident?.location || null}
                 />
               </div>
             </div>

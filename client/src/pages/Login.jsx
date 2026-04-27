@@ -231,7 +231,7 @@ const Login = () => {
                     placeholder="Enter the 6 letters above"
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-xs font-semibold text-brand-muted uppercase tracking-wider mb-1.5">New Password</label>
                   <input

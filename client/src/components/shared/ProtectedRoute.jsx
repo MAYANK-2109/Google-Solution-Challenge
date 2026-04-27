@@ -9,7 +9,7 @@ const ProtectedRoute = ({ children, requiredRole }) => {
       <div className="min-h-screen bg-brand-bg flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-brand-accent border-t-transparent rounded-full animate-spin" />
-          <p className="text-brand-muted text-sm">Loading SafeStay...</p>
+          <p className="text-brand-muted text-sm">Loading Saheli...</p>
         </div>
       </div>
     );

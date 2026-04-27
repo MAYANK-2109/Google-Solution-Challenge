@@ -41,7 +41,7 @@ const ResponseTools = ({ selectedIncident, selectedUser, liveLoc, onResolved, ch
     const loc = liveLoc || selectedUser?.loc || selectedIncident?.location;
     if (!loc) { toast.error('No location data available'); return; }
     const mapsUrl = `https://www.google.com/maps?q=${loc.lat},${loc.lng}`;
-    
+
     const name = selectedUser?.userId?.name || selectedUser?.userName || selectedIncident?.userId?.name || 'User';
     const textToShare = `Emergency Alert: Live location of ${name}`;
 

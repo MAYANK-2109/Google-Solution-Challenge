@@ -16,7 +16,7 @@ axios.interceptors.request.use((config) => {
 });
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser]   = useState(null);
+  const [user, setUser] = useState(null);
   const [token, setToken] = useState(() => localStorage.getItem('ss_token'));
   const [loading, setLoading] = useState(true);
 

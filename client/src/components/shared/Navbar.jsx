@@ -32,21 +32,19 @@ const Navbar = () => {
         {/* Right */}
         <div className="flex items-center gap-2 sm:gap-3">
           {/* Connection indicator */}
-          <div className={`flex items-center gap-1.5 text-xs font-medium px-2 sm:px-3 py-1.5 rounded-full border ${
-            connected
+          <div className={`flex items-center gap-1.5 text-xs font-medium px-2 sm:px-3 py-1.5 rounded-full border ${connected
               ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10'
               : 'text-red-400 border-red-500/30 bg-red-500/10'
-          }`}>
+            }`}>
             {connected ? <Wifi size={12} /> : <WifiOff size={12} />}
             <span className="hidden sm:inline">{connected ? 'Live' : 'Offline'}</span>
           </div>
 
           {/* Role badge */}
-          <span className={`hidden sm:inline-block text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${
-            user?.role === 'admin'
+          <span className={`hidden sm:inline-block text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${user?.role === 'admin'
               ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
               : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-          }`}>
+            }`}>
             {user?.role}
           </span>
 

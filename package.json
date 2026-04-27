@@ -1,7 +1,7 @@
 {
-  "name": "safestay-server",
+  "name": "saheli-server",
   "version": "1.0.0",
-  "description": "SafeStay IoT Safety Platform — Backend",
+  "description": "Saheli IoT Safety Platform — Backend",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

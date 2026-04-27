@@ -95,11 +95,10 @@ const Register = () => {
                 ].map(({ value, label, icon: Icon, desc }) => (
                   <button key={value} type="button" onClick={() => setForm((p) => ({ ...p, role: value }))}
                     id={`role-${value}`}
-                    className={`flex flex-col items-center gap-1.5 p-4 rounded-xl border-2 transition-all duration-200 ${
-                      form.role === value
+                    className={`flex flex-col items-center gap-1.5 p-4 rounded-xl border-2 transition-all duration-200 ${form.role === value
                         ? 'border-brand-accent bg-brand-accent/10 text-brand-text'
                         : 'border-brand-border text-brand-muted hover:border-brand-accent/50'
-                    }`}>
+                      }`}>
                     <Icon size={22} />
                     <span className="font-semibold text-sm">{label}</span>
                     <span className="text-xs opacity-70">{desc}</span>

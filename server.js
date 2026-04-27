@@ -78,7 +78,20 @@ app.use('/api/incidents', require('./routes/incidents'));
 app.use('/api/checkin', require('./routes/checkin'));
 app.use('/api/stats', require('./routes/stats'));
 
-// ── 404 Fallback ────────────────────────────────────────────
+const cron = require('node-cron');
+// Periodic cleanup: remove audioData from incidents older than 1 hour
+cron.schedule('*/10 * * * *', async () => {
+  try {
+    const cutoff = new Date(Date.now() - 60 * 60 * 1000); // 1 hour ago
+    const result = await Incident.updateMany(
+      { audioData: { $exists: true }, updatedAt: { $lt: cutoff } },
+      { $unset: { audioData: '', audioMimeType: '' } }
+    );
+    if (result.nModified) console.log(`Cleaned up audio data from ${result.nModified} incidents`);
+  } catch (err) {
+    console.error('Audio cleanup error:', err);
+  }
+});
 app.use((req, res) => res.status(404).json({ message: 'Route not found' }));
 
 // ── Global Error Handler ────────────────────────────────────
@@ -90,5 +103,5 @@ app.use((err, req, res, next) => {
 // ── Start Server ────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
 httpServer.listen(PORT, () => {
-  console.log(`🚀 SafeStay server running on http://localhost:${PORT}`);
+  console.log(`🚀 Saheli server running on http://localhost:${PORT}`);
 });

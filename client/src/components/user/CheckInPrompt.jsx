@@ -4,13 +4,13 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-const TIMEOUT_SECONDS = 60;
+const PROMPT_TIMEOUT = 30; // seconds before auto SOS
 
 const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLocation, currentHR }) => {
   const [visible, setVisible] = useState(false);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
-  const [countdown, setCountdown] = useState(TIMEOUT_SECONDS);
+  const [countdown, setCountdown] = useState(PROMPT_TIMEOUT);
   const intervalRef = useRef(null);
   const countdownRef = useRef(null);
   const promptActiveRef = useRef(false);
@@ -32,12 +32,12 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
     setLoading(true);
     await fetchMessage();
     setLoading(false);
-    setCountdown(TIMEOUT_SECONDS);
+    setCountdown(PROMPT_TIMEOUT);
     setVisible(true);
 
-    // Start 60s countdown
+    // Start 30s countdown
     if (countdownRef.current) clearInterval(countdownRef.current);
-    let remaining = TIMEOUT_SECONDS;
+    let remaining = PROMPT_TIMEOUT;
     countdownRef.current = setInterval(() => {
       remaining -= 1;
       setCountdown(remaining);
@@ -182,7 +182,7 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
       <div className="card shadow-2xl w-full max-w-sm border-2 border-blue-500/30 relative overflow-hidden">
         {/* Countdown progress bar */}
         <div className="absolute top-0 left-0 h-1 bg-blue-500 transition-all duration-1000 ease-linear"
-          style={{ width: `${(countdown / TIMEOUT_SECONDS) * 100}%` }}
+          style={{ width: `${(countdown / PROMPT_TIMEOUT) * 100}%` }}
         />
 
         {/* Header */}
