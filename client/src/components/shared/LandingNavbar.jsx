@@ -43,8 +43,10 @@ const LandingNavbar = () => {
         <div className="hidden md:flex items-center gap-8">
           {navLinks.map(({ label, href }) => (
             <a key={label} href={href}
-              className="text-sm font-medium text-brand-muted hover:text-[#4285F4] transition-colors duration-200">
+              className="relative group text-sm font-medium text-brand-muted hover:text-[#4285F4] transition-colors duration-300 py-1"
+            >
               {label}
+              <span className="absolute -bottom-1 left-1/2 w-1.5 h-1.5 bg-[#4285F4] rounded-full opacity-0 -translate-x-1/2 translate-y-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-y-0" />
             </a>
           ))}
         </div>
@@ -84,7 +86,7 @@ const LandingNavbar = () => {
 
       {/* Mobile menu */}
       {menuOpen && (
-        <div className="md:hidden bg-brand-surface border-b border-brand-border px-4 pb-6 space-y-1">
+        <div className="md:hidden bg-brand-surface border-b border-brand-border px-4 pb-6 space-y-1 animate-fade-in">
           {navLinks.map(({ label, href }) => (
             <a key={label} href={href} onClick={() => setMenuOpen(false)}
               className="block py-3 text-sm font-medium text-brand-text hover:text-[#4285F4] border-b border-brand-border transition-colors">
