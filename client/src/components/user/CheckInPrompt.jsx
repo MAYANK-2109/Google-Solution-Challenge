@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Shield, AlertTriangle, Loader2, Clock } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { API_URL as API } from '../../constants';
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const PROMPT_TIMEOUT = 30; // seconds before auto SOS
 
 const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLocation, currentHR }) => {
@@ -11,9 +11,19 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(PROMPT_TIMEOUT);
+  
   const intervalRef = useRef(null);
   const countdownRef = useRef(null);
   const promptActiveRef = useRef(false);
+
+  // Refs for stable callback access to avoid interval resets
+  const currentLocationRef = useRef(currentLocation);
+  const currentHRRef = useRef(currentHR);
+  const activeTripRef = useRef(activeTrip);
+
+  useEffect(() => { currentLocationRef.current = currentLocation; }, [currentLocation]);
+  useEffect(() => { currentHRRef.current = currentHR; }, [currentHR]);
+  useEffect(() => { activeTripRef.current = activeTrip; }, [activeTrip]);
 
   // Fetch a Gemini-generated check-in message
   const fetchMessage = useCallback(async () => {
@@ -25,112 +35,42 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
     }
   }, []);
 
-  // Show the check-in prompt
-  const showPrompt = useCallback(async () => {
-    if (promptActiveRef.current) return;
-    promptActiveRef.current = true;
-    setLoading(true);
-    await fetchMessage();
-    setLoading(false);
-    setCountdown(PROMPT_TIMEOUT);
-    setVisible(true);
-
-    // Start 30s countdown
-    if (countdownRef.current) clearInterval(countdownRef.current);
-    let remaining = PROMPT_TIMEOUT;
-    countdownRef.current = setInterval(() => {
-      remaining -= 1;
-      setCountdown(remaining);
-      if (remaining <= 0) {
-        clearInterval(countdownRef.current);
-        // Auto-trigger SOS on timeout
-        handleNotOkay(true);
-      }
-    }, 1000);
-  }, [fetchMessage]);
-
-  // Start the periodic interval timer
-  useEffect(() => {
-    if (!activeTrip || activeTrip.alertLevel === 'sos') {
-      // Don't check-in during active SOS
-      return;
-    }
-
-    const intervalMs = (activeTrip.checkInIntervalMinutes || 10) * 60 * 1000;
-
-    // Clear any existing interval
-    if (intervalRef.current) clearInterval(intervalRef.current);
-
-    intervalRef.current = setInterval(() => {
-      showPrompt();
-    }, intervalMs);
-
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      if (countdownRef.current) clearInterval(countdownRef.current);
-    };
-  }, [activeTrip?._id, activeTrip?.alertLevel, activeTrip?.checkInIntervalMinutes, showPrompt]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      if (countdownRef.current) clearInterval(countdownRef.current);
-    };
-  }, []);
-
-  // User confirms they are okay
-  const handleOkay = useCallback(async () => {
-    if (countdownRef.current) clearInterval(countdownRef.current);
-    setVisible(false);
-    promptActiveRef.current = false;
-
-    if (!activeTrip?._id) return;
-
-    try {
-      await axios.post(`${API}/checkin/confirm`, { tripId: activeTrip._id });
-      socket?.emit('checkin-ok', { tripId: activeTrip._id, userId });
-    } catch { /* silent */ }
-
-    toast.success("Great! Stay safe out there! 💪", { duration: 3000 });
-  }, [activeTrip?._id, socket, userId]);
-
   // User says they are NOT okay → trigger SOS
-  const handleNotOkay = useCallback(async (isTimeout = false) => {
+  const triggerSOS = useCallback(async (isTimeout = false) => {
     if (countdownRef.current) clearInterval(countdownRef.current);
     setVisible(false);
     promptActiveRef.current = false;
 
-    if (!activeTrip?._id) return;
+    const tripId = activeTripRef.current?._id;
+    if (!tripId) return;
 
     const toastMsg = isTimeout
       ? '⏰ No response detected — triggering SOS for your safety!'
       : '🆘 SOS triggered! Security is being alerted immediately.';
     toast.error(toastMsg, { duration: 8000 });
 
-    // Trigger SOS via API
     try {
       const payload = {
-        tripId: activeTrip._id,
+        tripId,
         type: 'SOS',
-        location: currentLocation,
-        biometricSnapshot: { hr: currentHR },
-        notes: isTimeout ? `Auto-SOS: Check-in unanswered for ${PROMPT_TIMEOUT} seconds` : 'SOS: Traveller reported not okay during check-in',
+        location: currentLocationRef.current,
+        biometricSnapshot: { hr: currentHRRef.current },
+        notes: isTimeout 
+          ? `Auto-SOS: Check-in unanswered for ${PROMPT_TIMEOUT} seconds` 
+          : 'SOS: Traveller reported not okay during check-in',
       };
+      
       const { data: incident } = await axios.post(`${API}/incidents`, payload);
 
-      // Socket push for instant map update
       socket?.emit('sos-trigger', {
-        tripId: activeTrip._id,
+        tripId,
         userId,
-        lat: currentLocation?.lat,
-        lng: currentLocation?.lng,
-        hr: currentHR,
+        lat: currentLocationRef.current?.lat,
+        lng: currentLocationRef.current?.lng,
+        hr: currentHRRef.current,
       });
 
       onSOSTriggered?.();
-
-      // Start audio recording for AI analysis
       startAudioRecording(incident._id);
     } catch (err) {
       if (err?.response?.status === 409) {
@@ -139,31 +79,70 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
         toast.error('SOS failed. Please use the SOS button manually.');
       }
     }
-  }, [activeTrip?._id, currentLocation, currentHR, socket, userId, onSOSTriggered]);
+  }, [socket, userId, onSOSTriggered]);
 
   // Show the check-in prompt
   const showPrompt = useCallback(async () => {
-    if (promptActiveRef.current) return;
+    if (promptActiveRef.current || !activeTripRef.current) return;
+    
     promptActiveRef.current = true;
     setLoading(true);
     await fetchMessage();
     setLoading(false);
+    
     setCountdown(PROMPT_TIMEOUT);
     setVisible(true);
 
-    // Start 30s countdown
     if (countdownRef.current) clearInterval(countdownRef.current);
     let remaining = PROMPT_TIMEOUT;
+    
     countdownRef.current = setInterval(() => {
       remaining -= 1;
       setCountdown(remaining);
       if (remaining <= 0) {
         clearInterval(countdownRef.current);
-        // Auto-trigger SOS on timeout
-        handleNotOkay(true);
+        triggerSOS(true);
       }
     }, 1000);
-  }, [fetchMessage, handleNotOkay]);
+  }, [fetchMessage, triggerSOS]);
+
+  // STABLE INTERVAL: This only resets if the trip or interval duration changes
+  useEffect(() => {
+    if (!activeTrip?._id || activeTrip?.alertLevel === 'sos') {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      return;
+    }
+
+    const intervalMs = (activeTrip.checkInIntervalMinutes || 10) * 60 * 1000;
+    
+    // Clear existing
+    if (intervalRef.current) clearInterval(intervalRef.current);
+
+    // Set new interval
+    intervalRef.current = setInterval(() => {
+      showPrompt();
+    }, intervalMs);
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [activeTrip?._id, activeTrip?.checkInIntervalMinutes, activeTrip?.alertLevel, showPrompt]);
+
+  const handleOkay = async () => {
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    setVisible(false);
+    promptActiveRef.current = false;
+
+    const tripId = activeTripRef.current?._id;
+    if (!tripId) return;
+
+    try {
+      await axios.post(`${API}/checkin/confirm`, { tripId });
+      socket?.emit('checkin-ok', { tripId, userId });
+      toast.success("Great! Stay safe out there! 💪", { duration: 3000 });
+    } catch { /* silent */ }
+  };
+
   const startAudioRecording = async (incidentId) => {
     try {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error('No mic');
@@ -171,10 +150,7 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
       const mediaRecorder = new MediaRecorder(stream);
       const chunks = [];
 
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data);
-      };
-
+      mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
       mediaRecorder.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(chunks, { type: 'audio/webm' });
@@ -189,15 +165,10 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
       };
 
       mediaRecorder.start();
-      setTimeout(() => {
-        if (mediaRecorder.state === 'recording') mediaRecorder.stop();
-      }, 7000);
+      setTimeout(() => { if (mediaRecorder.state === 'recording') mediaRecorder.stop(); }, 7000);
     } catch {
-      // No mic — send without audio
       const formData = new FormData();
-      try {
-        await axios.post(`${API}/incidents/${incidentId}/audio`, formData);
-      } catch { /* silent */ }
+      try { await axios.post(`${API}/incidents/${incidentId}/audio`, formData); } catch { /* silent */ }
     }
   };
 
@@ -206,12 +177,10 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-brand-bg/85 backdrop-blur-md animate-fade-in">
       <div className="card shadow-2xl w-full max-w-sm border-2 border-blue-500/30 relative overflow-hidden">
-        {/* Countdown progress bar */}
         <div className="absolute top-0 left-0 h-1 bg-blue-500 transition-all duration-1000 ease-linear"
           style={{ width: `${(countdown / PROMPT_TIMEOUT) * 100}%` }}
         />
 
-        {/* Header */}
         <div className="flex items-center gap-3 mb-4 mt-1">
           <div className="p-2 bg-blue-500/20 border border-blue-500/30 rounded-xl">
             <Shield size={22} className="text-blue-400" />
@@ -225,7 +194,6 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
           </div>
         </div>
 
-        {/* Gemini-generated message */}
         <div className="bg-brand-surface border border-brand-border rounded-xl p-4 mb-5">
           {loading ? (
             <div className="flex items-center gap-2 text-brand-muted">
@@ -237,23 +205,15 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
           )}
         </div>
 
-        {/* Action buttons */}
         <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={handleOkay}
-            className="py-3 rounded-xl bg-emerald-500/15 border-2 border-emerald-500/40 text-emerald-400 font-bold text-sm hover:bg-emerald-500/25 transition-all duration-200 active:scale-95"
-          >
+          <button onClick={handleOkay} className="py-3 rounded-xl bg-emerald-500/15 border-2 border-emerald-500/40 text-emerald-400 font-bold text-sm hover:bg-emerald-500/25 transition-all duration-200 active:scale-95">
             ✅ Yes, I'm okay!
           </button>
-          <button
-            onClick={() => handleNotOkay(false)}
-            className="py-3 rounded-xl bg-red-500/15 border-2 border-red-500/40 text-red-400 font-bold text-sm hover:bg-red-500/25 transition-all duration-200 active:scale-95"
-          >
+          <button onClick={() => triggerSOS(false)} className="py-3 rounded-xl bg-red-500/15 border-2 border-red-500/40 text-red-400 font-bold text-sm hover:bg-red-500/25 transition-all duration-200 active:scale-95">
             🆘 No, help me!
           </button>
         </div>
 
-        {/* Warning */}
         <div className="flex items-center gap-2 mt-4 text-[10px] text-brand-muted">
           <AlertTriangle size={10} className="text-amber-400 shrink-0" />
           <span>If unanswered, SOS will auto-trigger in {countdown} seconds for your safety.</span>
