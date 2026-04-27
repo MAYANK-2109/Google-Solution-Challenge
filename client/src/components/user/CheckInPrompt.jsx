@@ -1,31 +1,97 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Shield, AlertTriangle, Loader2, Clock } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { API_URL as API } from '../../constants';
 
-const PROMPT_TIMEOUT = 30;
+const PROMPT_TIMEOUT = 30; // seconds before auto SOS
 
 const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLocation, currentHR }) => {
+  // UI State
   const [visible, setVisible] = useState(false);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(PROMPT_TIMEOUT);
 
+  // Core Timers & Flags
+  const nextPromptTimeoutRef = useRef(null);
   const countdownIntervalRef = useRef(null);
   const promptActiveRef = useRef(false);
 
-  // STABLE DATA BOX: Guarantees we never have stale closures for props
+  // DATA BOX: The only reliable way to read constantly changing props (like heart rate)
+  // inside stable timer functions without triggering endless React re-renders.
   const dataBox = useRef({ activeTrip, userId, socket, currentLocation, currentHR, onSOSTriggered });
   useEffect(() => {
     dataBox.current = { activeTrip, userId, socket, currentLocation, currentHR, onSOSTriggered };
   });
 
-  // Action: Trigger SOS
-  const triggerSOS = async (isTimeout = false) => {
+  // ------------------------------------------------------------------
+  // 1. SCHEDULER: Self-Correcting Timeout Loop
+  // ------------------------------------------------------------------
+  const scheduleNextPrompt = useCallback(() => {
+    // Always clear any existing timeout to prevent overlapping timers
+    if (nextPromptTimeoutRef.current) clearTimeout(nextPromptTimeoutRef.current);
+    
+    const { activeTrip: trip } = dataBox.current;
+    
+    // If no trip or trip is in emergency, do not schedule another check-in
+    if (!trip?._id || trip?.alertLevel === 'sos') return;
+
+    // Default to 10 mins if undefined, convert to milliseconds
+    const intervalMinutes = trip.checkInIntervalMinutes || 10;
+    const intervalMs = intervalMinutes * 60 * 1000;
+
+    // Schedule the exact next tick
+    nextPromptTimeoutRef.current = setTimeout(() => {
+      showPrompt();
+    }, intervalMs);
+  }, []);
+
+  // ------------------------------------------------------------------
+  // 2. SHOW PROMPT LOGIC
+  // ------------------------------------------------------------------
+  const showPrompt = useCallback(() => {
+    // Guard against multiple simultaneous prompts
+    if (promptActiveRef.current) return;
+    promptActiveRef.current = true;
+
+    // Reset UI
+    setCountdown(PROMPT_TIMEOUT);
+    setLoading(true);
+    setVisible(true);
+
+    // Fetch the Gemini Message
+    axios.post(`${API}/checkin/generate-message`, {})
+      .then(({ data }) => setMessage(data.message))
+      .catch(() => setMessage("Hey! Just checking in — are you doing alright? Stay safe! 😊"))
+      .finally(() => setLoading(false));
+
+    // Start the 30-second countdown
     if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+    let remaining = PROMPT_TIMEOUT;
+
+    countdownIntervalRef.current = setInterval(() => {
+      remaining -= 1;
+      setCountdown(remaining);
+
+      // If user ignores it for 30 seconds, auto-trigger SOS
+      if (remaining <= 0) {
+        clearInterval(countdownIntervalRef.current);
+        triggerSOS(true);
+      }
+    }, 1000);
+  }, []);
+
+  // ------------------------------------------------------------------
+  // 3. SOS TRIGGER
+  // ------------------------------------------------------------------
+  const triggerSOS = useCallback(async (isTimeout = false) => {
+    // Halt all check-in systems
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+    if (nextPromptTimeoutRef.current) clearTimeout(nextPromptTimeoutRef.current);
+    
     setVisible(false);
-    promptActiveRef.current = false; // RESET FLAG
+    promptActiveRef.current = false;
 
     const { activeTrip: trip, userId: uId, socket: io, currentLocation: loc, currentHR: hr, onSOSTriggered: onSOS } = dataBox.current;
     if (!trip?._id) return;
@@ -56,13 +122,16 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
         toast.error('SOS failed. Please use the SOS button manually.');
       }
     }
-  };
+  }, []);
 
-  // Action: User is Okay
-  const handleOkay = async () => {
+  // ------------------------------------------------------------------
+  // 4. USER IS OKAY
+  // ------------------------------------------------------------------
+  const handleOkay = useCallback(async () => {
+    // Hide UI and reset the active flag
     if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
     setVisible(false);
-    promptActiveRef.current = false; // RESET FLAG
+    promptActiveRef.current = false;
 
     const { activeTrip: trip, userId: uId, socket: io } = dataBox.current;
     if (!trip?._id) return;
@@ -72,76 +141,39 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
       io?.emit('checkin-ok', { tripId: trip._id, userId: uId });
       toast.success("Great! Stay safe out there! 💪", { duration: 3000 });
     } catch { /* silent */ }
-  };
 
-  // Action: Show Prompt
-  const showPrompt = () => {
-    if (promptActiveRef.current) return;
-    promptActiveRef.current = true; // LOCK FLAG
+    // THE MAGIC BULLET: Explicitly schedule the NEXT prompt from this exact moment
+    scheduleNextPrompt();
+  }, [scheduleNextPrompt]);
 
-    setCountdown(PROMPT_TIMEOUT);
-    setLoading(true);
-    setVisible(true);
-
-    axios.post(`${API}/checkin/generate-message`, {})
-      .then(({ data }) => setMessage(data.message))
-      .catch(() => setMessage("Hey! Just checking in — are you doing alright? Stay safe! 😊"))
-      .finally(() => setLoading(false));
-
-    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
-    let remaining = PROMPT_TIMEOUT;
-
-    countdownIntervalRef.current = setInterval(() => {
-      remaining -= 1;
-      setCountdown(remaining);
-
-      if (remaining <= 0) {
-        clearInterval(countdownIntervalRef.current);
-        triggerSOS(true);
-      }
-    }, 1000);
-  };
 
   // ------------------------------------------------------------------
-  // BULLETPROOF INTERVAL PATTERN
-  // Ensures interval never resets unexpectedly, but always calls the latest logic
+  // 5. MASTER LIFECYCLE (Trip Start / Stop)
   // ------------------------------------------------------------------
-  const savedCallback = useRef();
-
   useEffect(() => {
-    savedCallback.current = showPrompt;
-  }); // Updates on every render so it always holds the freshest function
-
-  useEffect(() => {
-    // If there is no active trip OR the trip is in SOS mode:
+    // If there is no active trip or it's in SOS mode, kill all systems
     if (!activeTrip?._id || activeTrip?.alertLevel === 'sos') {
-      // CLEAR EVERYTHING AND RESET FLAGS
+      if (nextPromptTimeoutRef.current) clearTimeout(nextPromptTimeoutRef.current);
       if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
       setVisible(false);
-      promptActiveRef.current = false; // CRITICAL: Reset the flag when trip ends!
+      promptActiveRef.current = false;
       return;
     }
 
-    const intervalMinutes = activeTrip.checkInIntervalMinutes || 10;
-    const intervalMs = intervalMinutes * 60 * 1000;
+    // Otherwise, start the scheduler
+    scheduleNextPrompt();
 
-    function tick() {
-      if (savedCallback.current) savedCallback.current();
-    }
-
-    const id = setInterval(tick, intervalMs);
-    return () => clearInterval(id); // Only clears when trip ID or interval duration changes
-  }, [activeTrip?._id, activeTrip?.checkInIntervalMinutes, activeTrip?.alertLevel]);
-
-  // Cleanup on unmount
-  useEffect(() => {
+    // Cleanup when component unmounts or trip completely changes
     return () => {
+      if (nextPromptTimeoutRef.current) clearTimeout(nextPromptTimeoutRef.current);
       if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
       promptActiveRef.current = false;
     };
-  }, []);
+  }, [activeTrip?._id, activeTrip?.checkInIntervalMinutes, activeTrip?.alertLevel, scheduleNextPrompt]);
 
-  // Audio Recording
+  // ------------------------------------------------------------------
+  // 6. AUDIO RECORDING (Unchanged)
+  // ------------------------------------------------------------------
   const startAudioRecording = async (incidentId) => {
     try {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error('No mic');
@@ -171,6 +203,7 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
     }
   };
 
+  // Render UI
   if (!visible) return null;
 
   return (
