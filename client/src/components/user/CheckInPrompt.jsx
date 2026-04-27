@@ -12,34 +12,42 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(PROMPT_TIMEOUT);
 
-  // The MASTER CLOCK: Tracks exactly when the user last checked in safely.
-  const [lastCheckInTime, setLastCheckInTime] = useState(Date.now());
-
-  const promptIsVisibleRef = useRef(false);
+  // ALL LOGIC STATE IN REFS TO AVOID REACT STALE CLOSURES
+  const lastCheckInRef = useRef(Date.now());
+  const promptVisibleRef = useRef(false);
   const countdownIntervalRef = useRef(null);
 
-  // Always keep the freshest props without triggering stale closures
-  const latestProps = useRef({ activeTrip, userId, socket, currentLocation, currentHR, onSOSTriggered });
+  // ALWAYS FRESH PROPS IN REFS
+  const activeTripRef = useRef(activeTrip);
+  const locationRef = useRef(currentLocation);
+  const hrRef = useRef(currentHR);
+  const socketRef = useRef(socket);
+
+  // Sync props to refs on every render
   useEffect(() => {
-    latestProps.current = { activeTrip, userId, socket, currentLocation, currentHR, onSOSTriggered };
+    activeTripRef.current = activeTrip;
+    locationRef.current = currentLocation;
+    hrRef.current = currentHR;
+    socketRef.current = socket;
   });
 
-  // Reset the master clock whenever a NEW trip starts
+  // Trip Init: Reset clock when a new trip starts
   useEffect(() => {
     if (activeTrip?._id) {
-      setLastCheckInTime(Date.now());
-      promptIsVisibleRef.current = false;
+      lastCheckInRef.current = Date.now();
+      promptVisibleRef.current = false;
       setVisible(false);
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
     }
   }, [activeTrip?._id]);
 
-  // Action: Trigger SOS
   const triggerSOS = async (isTimeout = false) => {
     if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
-    promptIsVisibleRef.current = false;
+    promptVisibleRef.current = false;
     setVisible(false);
+    lastCheckInRef.current = Date.now(); // reset clock just in case
 
-    const { activeTrip: trip, userId: uId, socket: io, currentLocation: loc, currentHR: hr, onSOSTriggered: onSOS } = latestProps.current;
+    const trip = activeTripRef.current;
     if (!trip?._id) return;
 
     toast.error(isTimeout
@@ -51,14 +59,14 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
       const payload = {
         tripId: trip._id,
         type: 'SOS',
-        location: loc,
-        biometricSnapshot: { hr },
+        location: locationRef.current,
+        biometricSnapshot: { hr: hrRef.current },
         notes: isTimeout ? `Auto-SOS: Check-in unanswered for ${PROMPT_TIMEOUT} seconds` : 'SOS: Traveller reported not okay during check-in',
       };
       const { data: incident } = await axios.post(`${API}/incidents`, payload);
 
-      io?.emit('sos-trigger', { tripId: trip._id, userId: uId, lat: loc?.lat, lng: loc?.lng, hr });
-      if (onSOS) onSOS();
+      socketRef.current?.emit('sos-trigger', { tripId: trip._id, userId, lat: locationRef.current?.lat, lng: locationRef.current?.lng, hr: hrRef.current });
+      if (onSOSTriggered) onSOSTriggered();
 
       startAudioRecording(incident._id);
     } catch (err) {
@@ -70,30 +78,26 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
     }
   };
 
-  // Action: User is Okay
   const handleOkay = async () => {
     if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
-    promptIsVisibleRef.current = false;
+    promptVisibleRef.current = false;
     setVisible(false);
 
-    // MAGICAL RESET: This sets the master clock to NOW.
-    // The ticker will wait exactly 1 minute from THIS moment to show the next prompt.
-    setLastCheckInTime(Date.now());
+    // EXACTLY AS REQUESTED: Reset timestamp immediately upon answering
+    lastCheckInRef.current = Date.now();
 
-    const { activeTrip: trip, userId: uId, socket: io } = latestProps.current;
+    const trip = activeTripRef.current;
     if (!trip?._id) return;
 
     try {
       await axios.post(`${API}/checkin/confirm`, { tripId: trip._id });
-      io?.emit('checkin-ok', { tripId: trip._id, userId: uId });
+      socketRef.current?.emit('checkin-ok', { tripId: trip._id, userId });
       toast.success("Great! Stay safe out there! 💪", { duration: 3000 });
     } catch { /* silent */ }
   };
 
-  // Action: Start Prompt
   const startPrompt = () => {
-    if (promptIsVisibleRef.current) return;
-    promptIsVisibleRef.current = true;
+    promptVisibleRef.current = true;
     setVisible(true);
     setLoading(true);
     setCountdown(PROMPT_TIMEOUT);
@@ -118,8 +122,7 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
   };
 
   // ------------------------------------------------------------------
-  // THE TICKER: 1-Second Precision Clock
-  // This completely eliminates React interval drift and stale state bugs.
+  // DEAD SIMPLE TICKER - EXACTLY AS REQUESTED
   // ------------------------------------------------------------------
   useEffect(() => {
     if (!activeTrip?._id || activeTrip?.alertLevel === 'sos') return;
@@ -128,18 +131,25 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
     const intervalMs = intervalMinutes * 60 * 1000;
 
     const ticker = setInterval(() => {
-      if (promptIsVisibleRef.current) return;
+      const now = Date.now();
+      const diff = now - lastCheckInRef.current;
 
-      const timeElapsed = Date.now() - lastCheckInTime;
-      if (timeElapsed >= intervalMs) {
-        startPrompt();
+      // Check if time is up
+      if (diff >= intervalMs) {
+        if (promptVisibleRef.current) {
+          // As requested: if the message is already displaying, update the timestamp
+          // This ensures the ticker doesn't spam calls while prompt is open
+          lastCheckInRef.current = now;
+        } else {
+          startPrompt();
+        }
       }
     }, 1000);
 
     return () => clearInterval(ticker);
-  }, [activeTrip?._id, activeTrip?.checkInIntervalMinutes, activeTrip?.alertLevel, lastCheckInTime]);
+  }, [activeTrip?._id, activeTrip?.checkInIntervalMinutes, activeTrip?.alertLevel]);
 
-  // Audio Recording (Unchanged)
+  // Audio Recording
   const startAudioRecording = async (incidentId) => {
     try {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error('No mic');
