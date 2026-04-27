@@ -214,7 +214,7 @@ const Login = () => {
               <form onSubmit={handleResetSubmit} className="space-y-4">
                 <div className="p-4 bg-brand-surface border border-brand-border rounded-xl text-center">
                   <p className="text-xs text-brand-muted mb-2 uppercase tracking-wider font-semibold">Your Captcha Code</p>
-                  <div className="text-3xl font-mono font-bold text-brand-text tracking-[0.2em] bg-brand-bg py-2 rounded-lg border border-brand-border select-all">
+                  <div className="text-3xl font-mono font-bold text-brand-text tracking-[0.2em] bg-brand-bg py-2 rounded-lg border border-brand-border select-none pointer-events-none">
                     {captchaDisplay}
                   </div>
                 </div>
