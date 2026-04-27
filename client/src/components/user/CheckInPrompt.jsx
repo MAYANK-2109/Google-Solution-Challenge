@@ -30,6 +30,7 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
     // 1. Stop all timers and hide UI
     if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
     setVisible(false);
+    promptActiveRef.current = false;
 
     const { activeTrip: trip, userId: uId, socket: io, currentLocation: loc, currentHR: hr, onSOSTriggered: onSOS } = dataBox.current;
     if (!trip?._id) return;
@@ -70,6 +71,7 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
   const handleOkay = async () => {
     if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
     setVisible(false);
+    promptActiveRef.current = false;
 
     const { activeTrip: trip, userId: uId, socket: io } = dataBox.current;
     if (!trip?._id) return;
@@ -83,37 +85,30 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
 
   // Action: Show Prompt and Start 30s Countdown
   const showPrompt = async () => {
-    // Prevent double-showing by checking if it's already visible
-    // We must use functional state update to guarantee we get the latest 'visible' state
-    setVisible((prevVisible) => {
-      if (prevVisible) return true; // Keep it visible, don't restart logic
+    if (promptActiveRef.current) return;
+    promptActiveRef.current = true;
 
-      // If it wasn't visible, start the logic
-      setCountdown(PROMPT_TIMEOUT);
-      setLoading(true);
+    setCountdown(PROMPT_TIMEOUT);
+    setLoading(true);
+    setVisible(true);
 
-      // Fetch message asynchronously (we don't wait here because state updates are async)
-      axios.post(`${API}/checkin/generate-message`, {})
-        .then(({ data }) => setMessage(data.message))
-        .catch(() => setMessage("Hey! Just checking in — are you doing alright? Stay safe! 😊"))
-        .finally(() => setLoading(false));
+    axios.post(`${API}/checkin/generate-message`, {})
+      .then(({ data }) => setMessage(data.message))
+      .catch(() => setMessage("Hey! Just checking in — are you doing alright? Stay safe! 😊"))
+      .finally(() => setLoading(false));
 
-      // Start 30-second countdown
-      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
-      let remaining = PROMPT_TIMEOUT;
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+    let remaining = PROMPT_TIMEOUT;
 
-      countdownIntervalRef.current = setInterval(() => {
-        remaining -= 1;
-        setCountdown(remaining);
+    countdownIntervalRef.current = setInterval(() => {
+      remaining -= 1;
+      setCountdown(remaining);
 
-        if (remaining <= 0) {
-          clearInterval(countdownIntervalRef.current);
-          triggerSOS(true);
-        }
-      }, 1000);
-
-      return true; // Mark as visible
-    });
+      if (remaining <= 0) {
+        clearInterval(countdownIntervalRef.current);
+        triggerSOS(true);
+      }
+    }, 1000);
   };
 
   // Master Control: The Check-in Interval
