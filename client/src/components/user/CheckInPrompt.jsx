@@ -4,45 +4,38 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import { API_URL as API } from '../../constants';
 
-const PROMPT_TIMEOUT = 30; // 30 seconds
+const PROMPT_TIMEOUT = 30;
 
 const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLocation, currentHR }) => {
-  // UI State
   const [visible, setVisible] = useState(false);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(PROMPT_TIMEOUT);
 
-  // Timers
-  const mainIntervalRef = useRef(null);
   const countdownIntervalRef = useRef(null);
+  const promptActiveRef = useRef(false);
 
-  // "Always Fresh" Data Box - completely immune to stale closures
+  // STABLE DATA BOX: Guarantees we never have stale closures for props
   const dataBox = useRef({ activeTrip, userId, socket, currentLocation, currentHR, onSOSTriggered });
-
-  // Keep the Data Box updated on every single render
   useEffect(() => {
     dataBox.current = { activeTrip, userId, socket, currentLocation, currentHR, onSOSTriggered };
   });
 
-  // Action: Trigger SOS (Manual or Timeout)
+  // Action: Trigger SOS
   const triggerSOS = async (isTimeout = false) => {
-    // 1. Stop all timers and hide UI
     if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
     setVisible(false);
-    promptActiveRef.current = false;
+    promptActiveRef.current = false; // RESET FLAG
 
     const { activeTrip: trip, userId: uId, socket: io, currentLocation: loc, currentHR: hr, onSOSTriggered: onSOS } = dataBox.current;
     if (!trip?._id) return;
 
-    // 2. Notify User UI
     toast.error(isTimeout
       ? '⏰ No response detected — triggering SOS for your safety!'
       : '🆘 SOS triggered! Security is being alerted immediately.',
       { duration: 8000 });
 
     try {
-      // 3. API Call
       const payload = {
         tripId: trip._id,
         type: 'SOS',
@@ -52,11 +45,9 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
       };
       const { data: incident } = await axios.post(`${API}/incidents`, payload);
 
-      // 4. Sockets & Callbacks
       io?.emit('sos-trigger', { tripId: trip._id, userId: uId, lat: loc?.lat, lng: loc?.lng, hr });
       if (onSOS) onSOS();
 
-      // 5. Audio recording
       startAudioRecording(incident._id);
     } catch (err) {
       if (err?.response?.status === 409) {
@@ -71,7 +62,7 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
   const handleOkay = async () => {
     if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
     setVisible(false);
-    promptActiveRef.current = false;
+    promptActiveRef.current = false; // RESET FLAG
 
     const { activeTrip: trip, userId: uId, socket: io } = dataBox.current;
     if (!trip?._id) return;
@@ -83,10 +74,10 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
     } catch { /* silent */ }
   };
 
-  // Action: Show Prompt and Start 30s Countdown
-  const showPrompt = async () => {
+  // Action: Show Prompt
+  const showPrompt = () => {
     if (promptActiveRef.current) return;
-    promptActiveRef.current = true;
+    promptActiveRef.current = true; // LOCK FLAG
 
     setCountdown(PROMPT_TIMEOUT);
     setLoading(true);
@@ -111,35 +102,44 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
     }, 1000);
   };
 
-  // Master Control: The Check-in Interval
+  // ------------------------------------------------------------------
+  // BULLETPROOF INTERVAL PATTERN
+  // Ensures interval never resets unexpectedly, but always calls the latest logic
+  // ------------------------------------------------------------------
+  const savedCallback = useRef();
+
   useEffect(() => {
-    // Only run if trip is active and not already in SOS
+    savedCallback.current = showPrompt;
+  }); // Updates on every render so it always holds the freshest function
+
+  useEffect(() => {
+    // If there is no active trip OR the trip is in SOS mode:
     if (!activeTrip?._id || activeTrip?.alertLevel === 'sos') {
-      if (mainIntervalRef.current) clearInterval(mainIntervalRef.current);
+      // CLEAR EVERYTHING AND RESET FLAGS
       if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
       setVisible(false);
+      promptActiveRef.current = false; // CRITICAL: Reset the flag when trip ends!
       return;
     }
 
-    // Calculate how often to check in (e.g., 1 min = 60,000 ms)
     const intervalMinutes = activeTrip.checkInIntervalMinutes || 10;
     const intervalMs = intervalMinutes * 60 * 1000;
 
-    // Clear any existing interval to prevent duplicates
-    if (mainIntervalRef.current) clearInterval(mainIntervalRef.current);
+    function tick() {
+      if (savedCallback.current) savedCallback.current();
+    }
 
-    // Start the strict metronome
-    mainIntervalRef.current = setInterval(() => {
-      showPrompt();
-    }, intervalMs);
-
-    // Cleanup on unmount or trip change
-    return () => {
-      if (mainIntervalRef.current) clearInterval(mainIntervalRef.current);
-      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
-    };
+    const id = setInterval(tick, intervalMs);
+    return () => clearInterval(id); // Only clears when trip ID or interval duration changes
   }, [activeTrip?._id, activeTrip?.checkInIntervalMinutes, activeTrip?.alertLevel]);
-  // ^^^ TINY dependency array! It NEVER resets due to heart rate or location changes!
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+      promptActiveRef.current = false;
+    };
+  }, []);
 
   // Audio Recording
   const startAudioRecording = async (incidentId) => {
@@ -171,18 +171,15 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
     }
   };
 
-  // Render UI
   if (!visible) return null;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-brand-bg/85 backdrop-blur-md animate-fade-in">
       <div className="card shadow-2xl w-full max-w-sm border-2 border-blue-500/30 relative overflow-hidden">
-        {/* Progress bar */}
         <div className="absolute top-0 left-0 h-1 bg-blue-500 transition-all duration-1000 ease-linear"
           style={{ width: `${(countdown / PROMPT_TIMEOUT) * 100}%` }}
         />
 
-        {/* Header */}
         <div className="flex items-center gap-3 mb-4 mt-1">
           <div className="p-2 bg-blue-500/20 border border-blue-500/30 rounded-xl">
             <Shield size={22} className="text-blue-400" />
@@ -196,7 +193,6 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
           </div>
         </div>
 
-        {/* Message */}
         <div className="bg-brand-surface border border-brand-border rounded-xl p-4 mb-5">
           {loading ? (
             <div className="flex items-center gap-2 text-brand-muted">
@@ -208,7 +204,6 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
           )}
         </div>
 
-        {/* Action buttons */}
         <div className="grid grid-cols-2 gap-3">
           <button onClick={handleOkay} className="py-3 rounded-xl bg-emerald-500/15 border-2 border-emerald-500/40 text-emerald-400 font-bold text-sm hover:bg-emerald-500/25 transition-all duration-200 active:scale-95">
             ✅ Yes, I'm okay!
@@ -218,7 +213,6 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
           </button>
         </div>
 
-        {/* Warning */}
         <div className="flex items-center gap-2 mt-4 text-[10px] text-brand-muted">
           <AlertTriangle size={10} className="text-amber-400 shrink-0" />
           <span>If unanswered, SOS will auto-trigger in {countdown} seconds for your safety.</span>
@@ -229,4 +223,3 @@ const CheckInPrompt = ({ activeTrip, userId, onSOSTriggered, socket, currentLoca
 };
 
 export default CheckInPrompt;
-// MAYANK CHANDRIKAPURE
