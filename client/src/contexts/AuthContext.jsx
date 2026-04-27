@@ -8,7 +8,8 @@ const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 // Setup Axios Interceptor for Auth
 axios.interceptors.request.use((config) => {
   const token = localStorage.getItem('ss_token');
-  if (token) {
+  // Only attach token to our own API, not external ones like OSRM maps
+  if (token && config.url.startsWith(API)) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
